@@ -1,0 +1,50 @@
+name: vectorlake
+
+services:
+  floci:
+    image: floci/floci@sha256:f5aa8c18302cedb4f2385f5c4e455b3efc77fee6bf7b6e5d1712b2817ba102db
+    environment:
+      FLOCI_RUN_AS_ROOT: "true"
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_SERVICES_MSK_MOCK: "true"
+      FLOCI_SERVICES_RDS_MOCK: "false"
+      FLOCI_SERVICES_RDS_DEFAULT_POSTGRES_IMAGE: postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+      FLOCI_SERVICES_RDS_PROXY_BASE_PORT: "7001"
+      FLOCI_SERVICES_RDS_PROXY_MAX_PORT: "7001"
+      FLOCI_SERVICES_RDS_ENDPOINT_HOST: 127.0.0.1
+    ports:
+      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:7001:7001"
+    volumes:
+      - floci-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 768m
+    restart: on-failure
+
+  redpanda:
+    image: redpandadata/redpanda@sha256:9e83cfa99278f30d0133271c26bf670cd69c94ffa6ba0b42830dd0c3bd9dcfd9
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - "0M"
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://127.0.0.1:19092
+    ports:
+      - "127.0.0.1:19092:19092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    mem_limit: 768m
+    restart: on-failure
+
+volumes:
+  floci-data:
+  redpanda-data:
