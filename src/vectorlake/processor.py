@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
+import logging
 import time
 from dataclasses import dataclass
 from tempfile import SpooledTemporaryFile
-from typing import Any, cast
+from typing import Any, BinaryIO, cast
 from uuid import NAMESPACE_URL, uuid5
 
 from botocore.exceptions import ClientError
@@ -15,6 +17,8 @@ from vectorlake.common.local import LocalInfrastructureSettings
 from vectorlake.common.resources import IMAGE_TABLE, RAW_BUCKET
 from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import serialize_event
+from vectorlake.near_copy import POLICY_VERSION, Fingerprint, fingerprint, verify
+from vectorlake.near_copy_index import ScopedPDQIndex
 from vectorlake.validation import (
     CANONICALIZATION_VERSION,
     MAX_OBJECT_BYTES,
@@ -26,6 +30,8 @@ from vectorlake.validation import (
 EXACT_TABLE = "exact_hash_registry"
 PIXEL_TABLE = "pixel_hash_registry"
 MODEL_ROUTE = "resnet18-v1"
+EVIDENCE_TABLE = "near_copy_evidence"
+logger = logging.getLogger(__name__)
 
 
 class RetryableProcessingError(Exception):
@@ -40,6 +46,7 @@ class ProcessingOutcome:
     validation_status: str
     owner_image_id: str = ""
     duplicate_group_id: str = ""
+    fingerprint: Fingerprint | None = None
 
 
 class ImageProcessor:
@@ -51,6 +58,7 @@ class ImageProcessor:
         self.settings = settings or LocalInfrastructureSettings()
         self.s3 = aws_client("s3", self.settings)
         self.ddb = aws_client("dynamodb", self.settings)
+        self.index = ScopedPDQIndex(self.ddb)
         self.producer = producer or Producer(
             {"bootstrap.servers": self.settings.kafka_bootstrap_servers}
         )
@@ -192,6 +200,69 @@ class ImageProcessor:
             },
         )
 
+    def _shadow_evidence(
+        self, event: events_pb2.ImageReceivedV1, source: SpooledTemporaryFile[bytes]
+    ) -> Fingerprint | None:
+        try:
+            pdq = fingerprint(cast(BinaryIO, source))
+            candidates = self.index.find(event.context.dedup_scope_id, event.context.image_id, pdq)
+            records: list[dict[str, Any]] = []
+            for candidate in candidates:
+                state = self.ddb.get_item(
+                    TableName=IMAGE_TABLE,
+                    Key={"image_id": {"S": candidate.image_id}},
+                    ConsistentRead=True,
+                ).get("Item")
+                if not state or (
+                    state.get("dedup_scope_id", {}).get("S") != event.context.dedup_scope_id
+                    or state.get("tenant_id", {}).get("S") != event.context.tenant_id
+                    or state.get("bucket", {}).get("S") != RAW_BUCKET
+                    or state.get("validation_status", {}).get("S") != "valid"
+                    or state.get("dedup_status", {}).get("S") != "unique"
+                ):
+                    continue
+                request = {"Bucket": state["bucket"]["S"], "Key": state["object_key"]["S"]}
+                version = state.get("object_version", {}).get("S")
+                if version:
+                    request["VersionId"] = version
+                response = self.s3.get_object(**request)
+                body = response["Body"]
+                try:
+                    expected = int(state["expected_size_bytes"]["N"])
+                    if int(response["ContentLength"]) != expected:
+                        continue
+                    with SpooledTemporaryFile(max_size=1_048_576, mode="w+b") as other:
+                        streamed = stream_image(body, other, expected)
+                        canonicalize_image(other, streamed.media_type)
+                        result = verify(cast(BinaryIO, source), cast(BinaryIO, other))
+                    records.append(
+                        {
+                            "candidate_image_id": candidate.image_id,
+                            "pdq_distance": candidate.distance,
+                            **result.__dict__,
+                        }
+                    )
+                finally:
+                    body.close()
+            self.ddb.put_item(
+                TableName=EVIDENCE_TABLE,
+                Item={
+                    "image_id": {"S": event.context.image_id},
+                    "dedup_scope_id": {"S": event.context.dedup_scope_id},
+                    "policy_version": {"S": POLICY_VERSION},
+                    "pdq_hex": {"S": pdq.hex_value},
+                    "pdq_quality": {"N": str(pdq.quality)},
+                    "candidates_json": {"S": json.dumps(records, sort_keys=True)},
+                },
+            )
+            return pdq
+        except Exception as exc:
+            # Shadow analysis must never prevent the normal inference handoff.
+            logger.warning(
+                "near-copy shadow evaluation skipped for %s: %s", event.context.image_id, exc
+            )
+            return None
+
     def evaluate(self, event: events_pb2.ImageReceivedV1) -> ProcessingOutcome:
         state = self._state(event)
         if int(event.size_bytes) > MAX_OBJECT_BYTES:
@@ -263,6 +334,8 @@ class ImageProcessor:
                         raise RetryableProcessingError("pixel owner validation pending")
                     return self._duplicate(event, "pixel", pixel_owner, pixel_group)
 
+                pdq = self._shadow_evidence(event, temporary)
+
                 message = events_pb2.ImageInferenceReadyV1(
                     context=self._event_context(event, "image.inference-ready.v1"),
                     duplicate_group_id=group_id,
@@ -271,7 +344,7 @@ class ImageProcessor:
                     model_route=MODEL_ROUTE,
                 )
                 return ProcessingOutcome(
-                    "image.inference-ready.v1", message, "unique", "valid", "", group_id
+                    "image.inference-ready.v1", message, "unique", "valid", "", group_id, pdq
                 )
         finally:
             body.close()
@@ -316,4 +389,13 @@ class ImageProcessor:
         outcome = self.evaluate(event)
         self._publish(outcome, event.context.image_id)
         self._record_outcome(event, outcome)
+        if outcome.fingerprint is not None:
+            try:
+                self.index.add(
+                    event.context.dedup_scope_id, event.context.image_id, outcome.fingerprint
+                )
+            except Exception as exc:
+                logger.warning(
+                    "near-copy index write skipped for %s: %s", event.context.image_id, exc
+                )
         return outcome

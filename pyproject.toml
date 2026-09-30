@@ -16,6 +16,9 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "uvicorn>=0.34,<1",
     "pillow>=12.3,<13",
+    "pdqhash>=0.2,<1",
+    "opencv-python-headless>=4.10,<5",
+    "scikit-image>=0.25,<1",
 ]
 
 [dependency-groups]
@@ -59,4 +62,9 @@ disable_error_code = ["type-arg"]
 
 [[tool.mypy.overrides]]
 module = ["pymilvus", "pymilvus.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pdqhash"]
+follow_untyped_imports = false
 ignore_missing_imports = true

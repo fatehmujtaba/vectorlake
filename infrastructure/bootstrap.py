@@ -27,7 +27,9 @@ DDB_TABLES = {
     "pixel_hash_registry": "PK",
     "duplicate_groups": "PK",
     "request_idempotency": "PK",
+    "near_copy_evidence": "image_id",
 }
+PDQ_TABLE = "pdq_fingerprints"
 
 
 @dataclass(frozen=True)
@@ -113,6 +115,19 @@ def _ensure_tables(ddb: Any) -> None:
                 KeySchema=[{"AttributeName": key_name, "KeyType": "HASH"}],
                 BillingMode="PAY_PER_REQUEST",
             )
+    if PDQ_TABLE not in existing:
+        ddb.create_table(
+            TableName=PDQ_TABLE,
+            AttributeDefinitions=[
+                {"AttributeName": "dedup_scope_id", "AttributeType": "S"},
+                {"AttributeName": "image_id", "AttributeType": "S"},
+            ],
+            KeySchema=[
+                {"AttributeName": "dedup_scope_id", "KeyType": "HASH"},
+                {"AttributeName": "image_id", "KeyType": "RANGE"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
 
 
 def _find_rds_instance(rds: Any, identifier: str) -> Any:

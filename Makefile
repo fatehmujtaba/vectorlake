@@ -2,7 +2,7 @@ UV ?= uv
 UV_CACHE_DIR ?= /tmp/vectorlake-uv-cache
 export UV_CACHE_DIR
 
-.PHONY: sync test lint format build run bridge bridge-once processor processor-up processor-down proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 verify-worker-m3
+.PHONY: sync test lint format build run bridge bridge-once processor processor-up processor-down proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 evaluate-m4 verify-worker-m3
 
 sync:
 	$(UV) sync --locked --dev
@@ -64,6 +64,12 @@ e2e-m2:
 
 e2e-m3:
 	$(UV) run --locked python -m infrastructure.e2e_m3
+
+e2e-m4:
+	$(UV) run --locked python -m infrastructure.e2e_m4
+
+evaluate-m4:
+	$(UV) run --locked python -m infrastructure.evaluate_near_copy
 
 verify-worker-m3:
 	$(UV) run --locked python -m infrastructure.verify_worker_m3

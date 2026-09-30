@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from vectorlake.events.v1 import events_pb2
+from vectorlake.near_copy import Fingerprint
 from vectorlake.processor import ImageProcessor, ProcessingOutcome, RetryableProcessingError
 
 
@@ -77,3 +78,27 @@ def test_event_scope_must_match_upload_intent() -> None:
     with pytest.raises(ValueError, match="does not match upload intent"):
         processor.evaluate(received())
     processor.s3.get_object.assert_not_called()
+
+
+def test_index_only_after_event_and_state_are_recorded() -> None:
+    processor = object.__new__(ImageProcessor)
+    processor.producer = Mock()
+    processor.producer.flush.return_value = 0
+    processor.index = Mock()
+    event = received()
+    ready = ProcessingOutcome(
+        "image.inference-ready.v1",
+        events_pb2.ImageInferenceReadyV1(),
+        "unique",
+        "valid",
+        fingerprint=Fingerprint("0" * 64, 90),
+    )
+    with (
+        patch.object(ImageProcessor, "evaluate", return_value=ready),
+        patch.object(ImageProcessor, "_publish") as publish,
+        patch.object(ImageProcessor, "_record_outcome") as record,
+    ):
+        processor.process(event)
+    publish.assert_called_once()
+    record.assert_called_once()
+    processor.index.add.assert_called_once_with("scope-1", "image-1", Fingerprint("0" * 64, 90))

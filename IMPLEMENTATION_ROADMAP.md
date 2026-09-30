@@ -16,7 +16,7 @@ handling of untrusted images.
 | M1 | Local infrastructure and event contracts | 1-2 | Complete |
 | M2 | Upload-to-event vertical slice | 3-4 | Complete |
 | M3 | Safe validation and deterministic deduplication | 5-6 | Complete |
-| M4 | Evaluated near-copy deduplication | 7-9 | Next |
+| M4 | Evaluated near-copy deduplication | 7-9 | In progress (shadow path) |
 | M5 | Embeddings, archive, and image search | 10-12 | Pending |
 | M6 | State, repair, and observability | 13-15 | Pending |
 | M7 | End-to-end reliability and release gate | 16 | Pending |
@@ -124,6 +124,6 @@ their tests with the change. At completion, report:
 4. **Next:** the next concrete implementation step and its exit check.
 
 Do not mark a milestone complete until its exit checks pass. Update this table
-when a milestone changes state. The immediate implementation step is M4:
-implement a bounded PDQ candidate adapter and evaluated geometric verification
+when a milestone changes state. The immediate implementation step is to
+evaluate M4 on Copydays and realistic distractors, then add reversible decisions
 before permitting near-copy suppression.
