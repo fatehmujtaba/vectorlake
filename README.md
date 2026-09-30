@@ -88,3 +88,35 @@ to forward S3-created notifications from SQS to Kafka; the bridge deletes an
 SQS message only after the Kafka delivery callback succeeds and state is
 updated. `make e2e-m2` verifies the full flow, including replay identity and
 overwrite rejection.
+
+## Validation and deterministic deduplication
+
+M3 consumes `image.received.v1` and streams each object in 64 KiB chunks to a
+temporary file, with a 20 MB compressed-size cap. It checks JPEG, PNG, and
+WebP signatures and content type before decoding with Pillow. Single-frame
+decodes are limited to 8192 pixels per side and 16 million pixels total;
+truncated, unsupported, or malformed images emit a permanent
+`processing.failed.v1` event. Decoder warnings are treated as errors.
+
+Valid images receive an exact-byte SHA-256 and a versioned canonical-pixel
+SHA-256 that includes dimensions and sample mode. The latter preserves
+8-bit/16-bit and channel distinctions while ignoring metadata-only changes.
+The [pixels-v1 contract](image_embedding_platform_docs/11_CANONICAL_PIXEL_V1.md)
+defines the byte layout and decoder policy.
+Scope-keyed DynamoDB conditional claims select one exact and pixel owner.
+An exact copy of a validated owner skips decoding. Replays retain the same
+logical outcome event ID; unmatched images emit `image.inference-ready.v1`
+until M4 inserts evaluated near-copy verification before that handoff.
+
+```sh
+make e2e-m3
+make processor-up
+make verify-worker-m3
+make processor-down
+```
+
+`processor-up` builds a non-root, read-only, memory-capped worker container
+with a private temporary filesystem. It commits the Kafka offset only after
+the outcome event is acknowledged and image state is updated. The local
+decoder is bounded, but production deployment still needs a dedicated image
+processing threat review and stronger process/network isolation.

@@ -43,6 +43,39 @@ services:
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy", "-X", "brokers=127.0.0.1:9092"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: on-failure
+
+  processor:
+    profiles: [workers]
+    build: .
+    image: vectorlake:dev
+    command: ["python", "-m", "services.processor.main"]
+    environment:
+      VECTORLAKE_LOCAL_AWS_ENDPOINT_URL: http://floci:4566
+      VECTORLAKE_LOCAL_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      VECTORLAKE_LOCAL_AWS_REGION: us-east-1
+      VECTORLAKE_LOCAL_AWS_ACCESS_KEY_ID: test
+      VECTORLAKE_LOCAL_AWS_SECRET_ACCESS_KEY: test
+    depends_on:
+      floci:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     restart: on-failure
 
 volumes:

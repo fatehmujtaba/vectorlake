@@ -159,4 +159,11 @@ class UploadService:
         ).get("Item")
         if image is None or image["tenant_id"]["S"] != tenant_id:
             return None
-        return {"image_id": image_id, "status": image["ingestion_status"]["S"]}
+        status: dict[str, Any] = {
+            "image_id": image_id,
+            "status": image["ingestion_status"]["S"],
+        }
+        for name in ("validation_status", "dedup_status"):
+            if name in image:
+                status[name] = image[name]["S"]
+        return status

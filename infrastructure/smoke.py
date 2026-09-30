@@ -11,7 +11,7 @@ from confluent_kafka import Consumer, Producer
 from infrastructure.bootstrap import bootstrap
 from infrastructure.config import LocalInfrastructureSettings
 from vectorlake.common.aws import aws_client
-from vectorlake.common.resources import OBJECT_QUEUE, RAW_BUCKET, SMOKE_TOPIC
+from vectorlake.common.resources import RAW_BUCKET, SMOKE_TOPIC
 
 
 def smoke() -> dict[str, str]:
@@ -31,19 +31,24 @@ def smoke() -> dict[str, str]:
         s3.delete_object(Bucket=RAW_BUCKET, Key=object_key)
 
     sqs = aws_client("sqs", settings)
-    queue_url = sqs.get_queue_url(QueueName=OBJECT_QUEUE)["QueueUrl"]
-    sqs.send_message(QueueUrl=queue_url, MessageBody=marker)
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        messages = sqs.receive_message(QueueUrl=queue_url, WaitTimeSeconds=1).get("Messages", [])
-        for message in messages:
-            if message["Body"] == marker:
-                sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=message["ReceiptHandle"])
-                results["sqs"] = "send/receive/delete"
+    queue_url = sqs.create_queue(QueueName=f"vectorlake-smoke-{marker[:16]}")["QueueUrl"]
+    try:
+        sqs.send_message(QueueUrl=queue_url, MessageBody=marker)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            messages = sqs.receive_message(QueueUrl=queue_url, WaitTimeSeconds=1).get(
+                "Messages", []
+            )
+            for message in messages:
+                if message["Body"] == marker:
+                    sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=message["ReceiptHandle"])
+                    results["sqs"] = "send/receive/delete"
+                    break
+            if "sqs" in results:
                 break
-        if "sqs" in results:
-            break
-    assert "sqs" in results, "SQS smoke message was not received"
+        assert "sqs" in results, "SQS smoke message was not received"
+    finally:
+        sqs.delete_queue(QueueUrl=queue_url)
 
     ddb = aws_client("dynamodb", settings)
     item = {"PK": {"S": f"smoke#{marker}"}}
