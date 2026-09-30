@@ -6,20 +6,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import boto3
 import psycopg
-from botocore.config import Config
 from botocore.exceptions import ClientError
 from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore[attr-defined]
 
 from infrastructure.config import LocalInfrastructureSettings
+from vectorlake.common.aws import aws_client
+from vectorlake.common.resources import (
+    ARCHIVE_BUCKET,
+    OBJECT_DLQ,
+    OBJECT_QUEUE,
+    RAW_BUCKET,
+    SMOKE_TOPIC,
+)
 from vectorlake.events.v1.codec import EVENT_TYPES
 
-RAW_BUCKET = "vectorlake-raw-images"
-ARCHIVE_BUCKET = "vectorlake-embedding-archive"
-OBJECT_QUEUE = "image-object-created"
-OBJECT_DLQ = "image-object-created-dlq"
-SMOKE_TOPIC = "vectorlake.smoke.v1"
 DDB_TABLES = {
     "image_state": "image_id",
     "exact_hash_registry": "PK",
@@ -36,19 +37,6 @@ class BootstrapResult:
     postgres_host: str
     postgres_port: int
     postgres_database: str
-
-
-def aws_client(service: str, settings: LocalInfrastructureSettings) -> Any:
-    return boto3.client(  # type: ignore[call-overload]
-        service,
-        endpoint_url=settings.aws_endpoint_url,
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-        config=Config(
-            connect_timeout=5, read_timeout=30, retries={"mode": "standard", "max_attempts": 3}
-        ),
-    )
 
 
 def _error_code(exc: ClientError) -> str:
@@ -89,6 +77,30 @@ def _ensure_queues(sqs: Any) -> None:
     redrive = json.dumps({"deadLetterTargetArn": dlq_arn, "maxReceiveCount": "5"})
     queue_url = _queue_url(sqs, OBJECT_QUEUE, {"RedrivePolicy": redrive})
     sqs.set_queue_attributes(QueueUrl=queue_url, Attributes={"RedrivePolicy": redrive})
+
+
+def _ensure_notifications(s3: Any, sqs: Any) -> None:
+    queue_url = sqs.get_queue_url(QueueName=OBJECT_QUEUE)["QueueUrl"]
+    queue_arn = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["QueueArn"])[
+        "Attributes"
+    ]["QueueArn"]
+    s3.put_bucket_versioning(
+        Bucket=RAW_BUCKET,
+        VersioningConfiguration={"Status": "Enabled"},
+    )
+    s3.put_bucket_notification_configuration(
+        Bucket=RAW_BUCKET,
+        NotificationConfiguration={
+            "QueueConfigurations": [
+                {
+                    "Id": "vectorlake-object-created",
+                    "QueueArn": queue_arn,
+                    "Events": ["s3:ObjectCreated:*"],
+                    "Filter": {"Key": {"FilterRules": [{"Name": "prefix", "Value": "tenants/"}]}},
+                }
+            ]
+        },
+    )
 
 
 def _ensure_tables(ddb: Any) -> None:
@@ -171,8 +183,11 @@ def _ensure_topics(bootstrap_servers: str) -> None:
 
 def bootstrap(settings: LocalInfrastructureSettings | None = None) -> BootstrapResult:
     settings = settings or LocalInfrastructureSettings()
-    _ensure_buckets(aws_client("s3", settings))
-    _ensure_queues(aws_client("sqs", settings))
+    s3 = aws_client("s3", settings)
+    sqs = aws_client("sqs", settings)
+    _ensure_buckets(s3)
+    _ensure_queues(sqs)
+    _ensure_notifications(s3, sqs)
     _ensure_tables(aws_client("dynamodb", settings))
     postgres_host, postgres_port = _ensure_postgres(aws_client("rds", settings), settings)
     brokers = settings.kafka_bootstrap_servers

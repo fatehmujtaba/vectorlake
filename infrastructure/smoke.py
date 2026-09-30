@@ -8,14 +8,10 @@ import psycopg
 from botocore.exceptions import ClientError
 from confluent_kafka import Consumer, Producer
 
-from infrastructure.bootstrap import (
-    OBJECT_QUEUE,
-    RAW_BUCKET,
-    SMOKE_TOPIC,
-    aws_client,
-    bootstrap,
-)
+from infrastructure.bootstrap import bootstrap
 from infrastructure.config import LocalInfrastructureSettings
+from vectorlake.common.aws import aws_client
+from vectorlake.common.resources import OBJECT_QUEUE, RAW_BUCKET, SMOKE_TOPIC
 
 
 def smoke() -> dict[str, str]:

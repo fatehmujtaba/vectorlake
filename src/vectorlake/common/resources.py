@@ -1,0 +1,7 @@
+RAW_BUCKET = "vectorlake-raw-images"
+ARCHIVE_BUCKET = "vectorlake-embedding-archive"
+OBJECT_QUEUE = "image-object-created"
+OBJECT_DLQ = "image-object-created-dlq"
+SMOKE_TOPIC = "vectorlake.smoke.v1"
+IDEMPOTENCY_TABLE = "request_idempotency"
+IMAGE_TABLE = "image_state"

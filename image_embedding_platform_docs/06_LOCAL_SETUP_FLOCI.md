@@ -14,8 +14,9 @@ macOS
 The local stack is deliberately resource-conscious. We use:
 
 - Floci for AWS simulation,
-- Redpanda created by Floci MSK for Kafka,
-- Milvus Lite instead of full Milvus Standalone,
+- Compose-managed Redpanda for Kafka (Floci MSK advertises an unreachable
+  Docker-only endpoint on the verified Colima setup),
+- a bounded local PDQ/Hamming adapter in M4 (Milvus Lite rejects binary vectors),
 - ResNet-18 on CPU inside Docker,
 - small worker concurrency,
 - small local datasets for interactive development.
@@ -73,7 +74,7 @@ Use Floci for:
 S3
 SQS
 DynamoDB
-MSK (real Kafka protocol backed by Redpanda)
+MSK metadata only; use Compose Redpanda for the host-facing Kafka protocol
 RDS/PostgreSQL if desired
 Glue Schema Registry when event schemas are wired
 ```
@@ -82,9 +83,13 @@ Floci's service matrix and environment docs should be treated as the authoritati
 
 ## 5. Local vector database
 
-Do not run full Milvus Standalone by default on this 16 GB machine. Run Milvus Lite inside `vector-service`.
+Do not run full Milvus Standalone by default on this 16 GB machine. Milvus Lite
+3.2.1 rejects `BinaryVector` and cannot host the PDQ/Hamming index. M4 should
+use a bounded, scope-filtered local candidate adapter; validate production
+`BIN_FLAT`/`HAMMING` separately against Milvus Standalone or Distributed.
 
-Install dependency in that service image:
+Milvus Lite remains a possible local dense-embedding index in M5. Its dev
+dependency is installed through uv:
 
 ```text
 pymilvus[milvus-lite]
@@ -98,7 +103,8 @@ Local URI:
 
 Mount `/data` to a named Docker volume so the vector index survives container restart.
 
-The same Python Milvus client code can later use a remote endpoint.
+Dense-vector client code can later use a remote endpoint, but binary candidate
+search needs its own adapter contract.
 
 ## 6. Suggested Docker services
 

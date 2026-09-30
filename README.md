@@ -57,3 +57,34 @@ Production Milvus `BIN_FLAT`/`HAMMING` behavior needs its own integration test
 against Standalone or Distributed Milvus before rollout. Lite is also limited
 to FLAT indexes, so local measurements cannot establish production-scale
 candidate latency or recall.
+
+## Upload-to-event path
+
+M2 adds `POST /v1/upload-sessions` and `GET /v1/images/{image_id}`. The local
+auth stub accepts `Authorization: Bearer vectorlake-local-dev-token` and binds
+the caller to the seeded `local-dev` tenant and scope. Set
+`VECTORLAKE_LOCAL_API_TOKEN` to override that development-only token. In
+non-local environments, uploads fail closed until a real identity provider is
+configured. Send an `Idempotency-Key` header with the session request:
+
+```sh
+curl -sS -X POST http://127.0.0.1:8000/v1/upload-sessions \
+  -H 'Authorization: Bearer vectorlake-local-dev-token' \
+  -H 'Idempotency-Key: example-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"content_type":"image/png","size_bytes":1234}'
+```
+
+Use the returned `upload_url` and *both* `upload_headers` with a direct HTTP
+PUT. The URL expires after 15 minutes; replaying the same idempotency key
+returns the same image and a fresh URL. A conflicting replay returns 409.
+`If-None-Match: *` prevents normal overwrites, and the bucket is versioned.
+The pinned Floci image accepts the signed local PUT but its optional signature
+validator rejected even a minimal boto3 SigV4 URL in testing. Local expiration
+and signature-tamper enforcement are therefore unverified; validate both
+against the deployment S3 service before release.
+The API does not receive image bytes. Run `make bridge` in another terminal
+to forward S3-created notifications from SQS to Kafka; the bridge deletes an
+SQS message only after the Kafka delivery callback succeeds and state is
+updated. `make e2e-m2` verifies the full flow, including replay identity and
+overwrite rejection.

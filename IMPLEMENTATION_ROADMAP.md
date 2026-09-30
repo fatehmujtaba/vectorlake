@@ -14,8 +14,8 @@ handling of untrusted images.
 |---|---|---|---|
 | M0 | Engineering foundation | 0 | Complete |
 | M1 | Local infrastructure and event contracts | 1-2 | Complete |
-| M2 | Upload-to-event vertical slice | 3-4 | Next |
-| M3 | Safe validation and deterministic deduplication | 5-6 | Pending |
+| M2 | Upload-to-event vertical slice | 3-4 | Complete |
+| M3 | Safe validation and deterministic deduplication | 5-6 | Next |
 | M4 | Evaluated near-copy deduplication | 7-9 | Pending |
 | M5 | Embeddings, archive, and image search | 10-12 | Pending |
 | M6 | State, repair, and observability | 13-15 | Pending |
@@ -124,6 +124,6 @@ their tests with the change. At completion, report:
 4. **Next:** the next concrete implementation step and its exit check.
 
 Do not mark a milestone complete until its exit checks pass. Update this table
-when a milestone changes state. The immediate implementation step is M2:
-connect a tenant-scoped presigned upload to S3 notification, SQS bridge, and a
-durable `image.received.v1` event, with replay and failure-ordering tests.
+when a milestone changes state. The immediate implementation step is M3:
+consume `image.received.v1`, stream and validate source objects within strict
+bounds, then claim exact and canonical-pixel identities conditionally.
