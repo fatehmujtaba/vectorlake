@@ -22,10 +22,21 @@ not an active duplicate relationship.
 ## Copydays preparation
 
 The official page links a 208 MB original archive, a 77 MB scale/JPEG archive,
-a 60 MB strong-attack archive, and a 2 GB crop archive. The linked
-`pascal.inrialpes.fr` host timed out on 2026-09-30; alternate INRIA hosts
-returned 404, so no Copydays measurement is claimed yet. Keep the extracted
-images outside Git. With locally available extracted archives, run:
+a 60 MB strong-attack archive, and a 2 GB crop archive. The live
+`pascal.inrialpes.fr` host timed out on 2026-09-30, but the [2016 Wayback
+capture](https://web.archive.org/web/20181015092553if_/http://pascal.inrialpes.fr/data/holidays/)
+contains the original, JPEG, and strong-attack archives. They were downloaded
+and extracted under ignored `.artifacts/m4/copydays`; the crop archive was not
+downloaded. Archive SHA-256 values, in original/JPEG/strong order, are:
+
+```text
+8b85b7914fd0145bc258bde3440f6a622243ca91ee085fe2025ce7bdeb0bfb8e
+7abbf87c97b6d8a8044194ea5c34e98d76c6f37381d69ef9c2fbfa0ffaabc8bd
+7852c64aa4a37e8329ce08159fc947c16f09c66737db0a2479a90fc9ae40760c
+```
+
+Keep the extracted images outside Git. With locally available extracted
+archives, run:
 
 ```sh
 uv run python -m infrastructure.copydays_manifest \
@@ -47,6 +58,33 @@ product's size/dimension limits. It reports candidate recall@5, precision,
 recall, false positives, screened negative pairs, verified negative
 candidates, and verification latency overall and by attack. The report always
 sets `suppression_approved=false`; metrics alone do not change the live policy.
+
+## First real-data measurement (2026-09-30)
+
+The manifest contains 157 source images and 1,642 attacked queries. It assigns
+110 sources to calibration and 47 to held out. The committed policy is
+`near-copy-shadow-v1` (PDQ distance <= 48, aligned SSIM >= 0.90). Full local
+results are in ignored `.artifacts/m4/copydays_report.json`.
+
+| Split | Queries | Candidate recall@5 | Verified recall | False positives | Nonmatching candidates verified | Median / p95 verification |
+|---|---:|---:|---:|---:|---:|---:|
+| Calibration | 1,152 | 80.4% | 2.1% | 0 | 0 | 153 / 199 ms |
+| Held out | 490 | 76.3% | 0.6% | 0 | 0 | 159 / 215 ms |
+
+The strong-attack candidate recall is 1.9% on calibration and 1.5% held out;
+verified recall is zero on both. JPEG variants generally reach candidate
+search but seldom pass verification. In a 58-query calibration diagnostic
+sample, most JPEG failures were `low_ssim`, while strong-attack failures were
+mostly `insufficient_matches` or `poor_spatial_support`. The JPEG archive
+images are often one-quarter the original dimensions; alignment and quality
+loss may contribute to the SSIM failures, but this is not yet a proven root
+cause. These observations do not justify lowering thresholds.
+
+The zero false-positive count is **not** a precision guarantee: although the
+report screened 147,446 nonmatching pairs by PDQ, none entered the bounded
+candidate list or geometric verifier. Realistic hard negatives and a larger
+candidate pool are needed before setting a false-positive gate. The current
+policy fails the held-out recall gate, so fuzzy suppression remains disabled.
 
 ## Compensation path
 
@@ -79,11 +117,11 @@ positive transformations. No threshold should be relaxed solely on this set.
 
 ## Remaining M4 gate
 
-1. Obtain the official Copydays originals and attacked sets, then run the
-   source-disjoint manifest and evaluation commands above. The data is not
-   in this repo and the official linked download host was unreachable.
-2. Measure candidate recall@K, verification precision/recall, false positives,
-   and latency by transformation on that corpus and realistic distractors.
+1. Diagnose and improve the JPEG alignment/verification failure on calibration
+   sources only; add failure-reason counts to the reproducible report.
+2. Add the crop attacks and realistic hard negatives, then measure candidate
+   recall@K, verification precision/recall, false positives, and latency by
+   transformation. Preserve source-disjoint held-out evaluation.
 3. Calibrate a versioned strict policy against a stated false-positive gate,
    then add guarded activation of derived decisions and duplicate groups.
 4. Enable fuzzy suppression only after held-out evidence supports that policy.

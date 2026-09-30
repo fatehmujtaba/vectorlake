@@ -125,7 +125,9 @@ their tests with the change. At completion, report:
 
 Do not mark a milestone complete until its exit checks pass. Update this table
 when a milestone changes state. The immediate implementation step is to
-obtain Copydays and realistic distractors, run the source-disjoint evaluation,
-and calibrate a release-gated strict policy before permitting near-copy
-suppression. Shadow decision records and a revocation drill are in place;
-neither activates derived duplicates.
+diagnose the Copydays JPEG verification failure on calibration sources, add
+failure-reason reporting and realistic hard negatives, and re-evaluate the
+source-disjoint release gate before permitting near-copy suppression. The
+first held-out run found 0.6% verified recall, so M4 remains in progress.
+Shadow decision records and a revocation drill are in place; neither
+activates derived duplicates.
