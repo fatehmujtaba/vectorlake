@@ -19,6 +19,7 @@ from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import serialize_event
 from vectorlake.near_copy import POLICY_VERSION, Fingerprint, fingerprint, verify
 from vectorlake.near_copy_index import ScopedPDQIndex
+from vectorlake.revocation import DECISION_TABLE
 from vectorlake.validation import (
     CANONICALIZATION_VERSION,
     MAX_OBJECT_BYTES,
@@ -201,12 +202,16 @@ class ImageProcessor:
         )
 
     def _shadow_evidence(
-        self, event: events_pb2.ImageReceivedV1, source: SpooledTemporaryFile[bytes]
+        self,
+        event: events_pb2.ImageReceivedV1,
+        source: SpooledTemporaryFile[bytes],
+        own_group_id: str,
     ) -> Fingerprint | None:
         try:
             pdq = fingerprint(cast(BinaryIO, source))
             candidates = self.index.find(event.context.dedup_scope_id, event.context.image_id, pdq)
             records: list[dict[str, Any]] = []
+            shadow_decision: dict[str, Any] | None = None
             for candidate in candidates:
                 state = self.ddb.get_item(
                     TableName=IMAGE_TABLE,
@@ -242,6 +247,29 @@ class ImageProcessor:
                             **result.__dict__,
                         }
                     )
+                    if result.accepted and shadow_decision is None:
+                        owner_group = state.get("duplicate_group_id", {}).get("S")
+                        if owner_group:
+                            shadow_decision = {
+                                "image_id": {"S": event.context.image_id},
+                                "decision_id": {
+                                    "S": str(
+                                        uuid5(
+                                            NAMESPACE_URL,
+                                            f"shadow/{event.context.image_id}/{candidate.image_id}/{POLICY_VERSION}",
+                                        )
+                                    )
+                                },
+                                "tenant_id": {"S": event.context.tenant_id},
+                                "dedup_scope_id": {"S": event.context.dedup_scope_id},
+                                "status": {"S": "SHADOW"},
+                                "duplicate_class": {"S": "DERIVED"},
+                                "duplicate_group_id": {"S": owner_group},
+                                "own_group_id": {"S": own_group_id},
+                                "representative_image_id": {"S": candidate.image_id},
+                                "policy_version": {"S": POLICY_VERSION},
+                                "created_at_epoch_ms": {"N": str(int(time.time() * 1000))},
+                            }
                 finally:
                     body.close()
             self.ddb.put_item(
@@ -255,6 +283,16 @@ class ImageProcessor:
                     "candidates_json": {"S": json.dumps(records, sort_keys=True)},
                 },
             )
+            if shadow_decision is not None:
+                try:
+                    self.ddb.put_item(
+                        TableName=DECISION_TABLE,
+                        Item=shadow_decision,
+                        ConditionExpression="attribute_not_exists(image_id)",
+                    )
+                except ClientError as exc:
+                    if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
+                        raise
             return pdq
         except Exception as exc:
             # Shadow analysis must never prevent the normal inference handoff.
@@ -334,7 +372,7 @@ class ImageProcessor:
                         raise RetryableProcessingError("pixel owner validation pending")
                     return self._duplicate(event, "pixel", pixel_owner, pixel_group)
 
-                pdq = self._shadow_evidence(event, temporary)
+                pdq = self._shadow_evidence(event, temporary, group_id)
 
                 message = events_pb2.ImageInferenceReadyV1(
                     context=self._event_context(event, "image.inference-ready.v1"),

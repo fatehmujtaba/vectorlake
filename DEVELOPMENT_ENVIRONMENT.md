@@ -30,10 +30,11 @@ milestone introduces runnable configuration:
 - M1: Floci-backed S3, SQS, DynamoDB, MSK/Redpanda, and PostgreSQL. The Floci
   image is already present, but the broker/database operations still need
   end-to-end smoke tests.
-- M4: PDQ/OpenCV and Milvus Lite inside the vector service. The current
-  [Milvus Lite documentation](https://milvus.io/docs/milvus_lite.md) states
-  that it uses FLAT indexes, so binary Hamming behavior and production-scale
-  candidate indexing need explicit validation before implementation.
+- M4: PDQ, OpenCV, and scikit-image are installed with `uv`. A bounded,
+  scope-keyed DynamoDB scan is the local candidate adapter because the live
+  Milvus Lite binary-vector probe rejected `BinaryVector`. Production Milvus
+  binary Hamming indexing still needs separate validation. The worker's
+  Linux ARM image builds PDQ in a compiler-only builder stage.
 - M5: torchvision/ResNet-18, PyArrow, and semantic Milvus indexing.
 - M6: OpenTelemetry Collector, Prometheus, Grafana, and Jaeger containers.
 

@@ -105,14 +105,26 @@ The [pixels-v1 contract](image_embedding_platform_docs/11_CANONICAL_PIXEL_V1.md)
 defines the byte layout and decoder policy.
 Scope-keyed DynamoDB conditional claims select one exact and pixel owner.
 An exact copy of a validated owner skips decoding. Replays retain the same
-logical outcome event ID; unmatched images emit `image.inference-ready.v1`
-until M4 inserts evaluated near-copy verification before that handoff.
+logical outcome event ID. M4 evaluates near-copy candidates in shadow mode;
+unmatched images still emit `image.inference-ready.v1`, including accepted
+shadow matches. Fuzzy suppression is not enabled.
 
 ```sh
 make e2e-m3
 make processor-up
 make verify-worker-m3
 make processor-down
+```
+
+M4's scoped PDQ, geometric verifier, evaluation harness, and compensation
+drill are described in the [shadow evaluation note](image_embedding_platform_docs/12_M4_SHADOW_EVALUATION.md).
+The Copydays release gate remains open because the official image archives
+were unavailable during this phase.
+
+```sh
+make evaluate-m4
+make e2e-m4
+make e2e-m4-revoke
 ```
 
 `processor-up` builds a non-root, read-only, memory-capped worker container

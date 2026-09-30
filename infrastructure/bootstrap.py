@@ -28,6 +28,7 @@ DDB_TABLES = {
     "duplicate_groups": "PK",
     "request_idempotency": "PK",
     "near_copy_evidence": "image_id",
+    "duplicate_decisions": "image_id",
 }
 PDQ_TABLE = "pdq_fingerprints"
 

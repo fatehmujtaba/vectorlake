@@ -125,5 +125,7 @@ their tests with the change. At completion, report:
 
 Do not mark a milestone complete until its exit checks pass. Update this table
 when a milestone changes state. The immediate implementation step is to
-evaluate M4 on Copydays and realistic distractors, then add reversible decisions
-before permitting near-copy suppression.
+obtain Copydays and realistic distractors, run the source-disjoint evaluation,
+and calibrate a release-gated strict policy before permitting near-copy
+suppression. Shadow decision records and a revocation drill are in place;
+neither activates derived duplicates.
