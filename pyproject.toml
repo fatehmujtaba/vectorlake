@@ -1,0 +1,44 @@
+[project]
+name = "vectorlake"
+version = "0.1.0"
+description = "Image ingestion, deduplication, embedding, and visual search platform"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "opentelemetry-api>=1.30,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+    "opentelemetry-sdk>=1.30,<2",
+    "pydantic-settings>=2.8,<3",
+    "uvicorn>=0.34,<1",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1",
+    "mypy>=1.15,<2",
+    "pytest>=8.3,<10",
+    "ruff>=0.12,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectorlake"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"

@@ -12,8 +12,8 @@ handling of untrusted images.
 
 | ID | Milestone | Source phases | Status |
 |---|---|---|---|
-| M0 | Engineering foundation | 0 | Next |
-| M1 | Local infrastructure and event contracts | 1-2 | Pending |
+| M0 | Engineering foundation | 0 | Complete |
+| M1 | Local infrastructure and event contracts | 1-2 | Next |
 | M2 | Upload-to-event vertical slice | 3-4 | Pending |
 | M3 | Safe validation and deterministic deduplication | 5-6 | Pending |
 | M4 | Evaluated near-copy deduplication | 7-9 | Pending |
@@ -37,8 +37,10 @@ handling of untrusted images.
   idempotent Floci/PostgreSQL bootstrap, Protobuf event definitions, generated
   Python classes, and contract tests.
 - Before relying on them, verify the exact Floci operations and Milvus Lite
-  binary-search behavior required by this design. Record any incompatibility
-  and its adapter-level resolution.
+  binary-search behavior required by this design. Milvus Lite currently
+  documents FLAT indexing only, so local PDQ search cannot stand in for an
+  indexed production-scale benchmark. Record any incompatibility and its
+  adapter-level resolution.
 - Exit: repeat bootstrap succeeds; S3, SQS, DynamoDB conditional writes,
   Kafka, and PostgreSQL smoke tests pass; an old event remains readable after
   an additive schema change and invalid payloads fail cleanly.
@@ -122,6 +124,6 @@ their tests with the change. At completion, report:
 4. **Next:** the next concrete implementation step and its exit check.
 
 Do not mark a milestone complete until its exit checks pass. Update this table
-when a milestone changes state. The immediate implementation step is M0:
-establish the Python package layout, developer commands, and clean-checkout
-quality gates.
+when a milestone changes state. The immediate implementation step is M1:
+bring up the local dependency stack, verify its required operations, and
+define the first versioned event contracts.

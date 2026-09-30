@@ -1,0 +1,11 @@
+.git
+.venv
+.uv-cache
+.env
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+dist
+tests
+image_embedding_platform_docs
