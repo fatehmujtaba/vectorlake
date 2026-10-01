@@ -120,6 +120,8 @@ M4's scoped PDQ, geometric verifier, evaluation harness, and compensation
 drill are described in the [shadow evaluation note](image_embedding_platform_docs/12_M4_SHADOW_EVALUATION.md).
 The owner-supplied Kaggle image corpus, controlled augmentations, and
 calibration-only results are in the [Kaggle evaluation note](image_embedding_platform_docs/13_M4_KAGGLE_DATA_EVALUATION.md).
+The owner-approved distinct-timestamp rule exposes would-be false matches in
+the animal recording, so near-copy suppression remains off.
 The Copydays release gate remains open. Archived originals, JPEG, and strong
 attacks and 5,000 COCO distractors are now available locally. Shadow policy
 v2 improves held-out verified recall to 10.6% overall, but no nonmatching

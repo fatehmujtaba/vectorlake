@@ -134,5 +134,9 @@ nonmatching COCO candidate reached geometric verification. M4 remains in
 progress. Shadow decision records and a revocation drill are in place;
 neither activates derived duplicates. The owner-supplied Kaggle corpus now
 provides a controlled calibration set: JPEG-75 copies passed 33/33, resize
-passed 24/33, and 10% crops passed 0/33. Its animal-frame hard negatives
-still need semantic labels, and its final recording split remains unscored.
+passed 24/33, and 10% crops passed 0/33. Its 12 reviewed animal-frame pairs
+are labeled under the owner's rule; the final recording split remains unscored.
+The owner has since defined different-timestamp animal frames as distinct;
+the chronological shadow sample accepted earlier-frame matches for 38/48
+queries. Near-copy activation is therefore blocked, and exact/pixel dedup
+also needs a capture-identity review before claiming observation preservation.

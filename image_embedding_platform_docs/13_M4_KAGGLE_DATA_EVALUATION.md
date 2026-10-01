@@ -89,13 +89,56 @@ product's actual duplicate policy. Do not derive a false-positive gate from
 unreviewed pairs. The review generator refuses to overwrite a queue once any
 label has been changed from `UNREVIEWED`.
 
+## Different timestamps are distinct observations
+
+The dataset owner approved a conservative rule: frames from different
+captures in the `animal_evening_time` recording are separate observations,
+even if their pixels look almost identical. The filename's frame number is
+used as a capture-order proxy; the archive provides no separate timestamp
+manifest. A transformed copy of one captured frame remains a duplicate. This
+rule labels all 12 reviewed different-frame pairs `DISTINCT_OBSERVATION`;
+their image checksums are verified before the labels are written. The original
+unlabeled queue is preserved.
+
+Run the label and shadow-policy evaluation with new output paths:
+
+```sh
+uv run python -m infrastructure.kaggle_label_evaluation \
+  --animal-dir .artifacts/m4/kaggle/extracted/dataset/animal \
+  --review-json .artifacts/m4/kaggle/animal_review.json \
+  --labels-output .artifacts/m4/kaggle/animal_review_labeled_frame_order.json \
+  --report-output .artifacts/m4/kaggle/animal_distinct_report_frame_order.json \
+  --sample-size 48
+```
+
+The 12 reviewed pairs include nine that the geometric verifier accepts.
+For a separate deterministic sample of 48 incoming frames, the tool searches
+the 1,001 frames in this recording, allowing only earlier timestamps into
+each query's top-five PDQ candidate pool. It verified 172 candidate pairs;
+101 pairs were accepted, affecting 38 of 48 sampled queries. Under the agreed
+label rule, these are **would-be false-positive near-copy decisions** if the
+shadow path were activated. The sample is from one deliberately difficult
+recording, not a population-wide false-positive-rate estimate. It is enough
+to fail the safety gate. The held-out recording split remains unscored, and
+fuzzy suppression remains disabled.
+
+The same observation rule also exposes an architecture question outside this
+shadow path: byte and canonical-pixel identity are currently scoped by tenant
+dedup scope, not by capture identity. Two separately captured observations
+with identical bytes or pixels could be coalesced before near-copy search.
+Before calling the whole pipeline observation-preserving, the upload contract
+needs a trustworthy capture/observation identity and the exact/pixel
+deduplication policy must be reviewed against it.
+
 ## Remaining gate
 
-1. Agree on frame-level duplicate semantics and label the animal review queue.
+1. Review exact/pixel deduplication against capture identity under the agreed
+   distinct-timestamp rule.
 2. Add a separately sourced, representative hard-negative corpus; this single
    animal recording cannot provide source-disjoint animal calibration and final
    evidence.
-3. Obtain and evaluate Copydays crop attacks, then freeze a policy on
+3. Investigate candidate retrieval for crops and safe rejection of distinct
+   frames, then obtain and evaluate Copydays crop attacks. Freeze a policy on
    calibration data and score the untouched final recordings once.
 4. Activate derived decisions only if the explicit false-positive and recall
-   gates pass. The current policy does not pass the crop gate.
+   gates pass. The current policy fails both the distinct-frame and crop gates.
