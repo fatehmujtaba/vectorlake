@@ -47,7 +47,7 @@ def _fingerprint(path: Path) -> Fingerprint:
         return fingerprint(source)
 
 
-def _summary(bucket: dict[str, Any]) -> dict[str, Any]:
+def _summary(bucket: dict[str, Any], negative_labels_complete: bool) -> dict[str, Any]:
     positive = bucket["positive_queries"]
     tp = bucket["true_positive"]
     fp = bucket["false_positive"]
@@ -63,7 +63,7 @@ def _summary(bucket: dict[str, Any]) -> dict[str, Any]:
             if durations
             else 0.0
         ),
-    }
+    } | ({"precision": None, "false_positive": None} if not negative_labels_complete else {})
 
 
 def _bucket() -> dict[str, Any]:
@@ -72,6 +72,7 @@ def _bucket() -> dict[str, Any]:
         "candidate_hits": 0,
         "true_positive": 0,
         "false_positive": 0,
+        "accepted_unlabeled_pairs": 0,
         "false_negative": 0,
         "negative_pairs_screened": 0,
         "negative_candidates_verified": 0,
@@ -80,11 +81,17 @@ def _bucket() -> dict[str, Any]:
     }
 
 
-def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def evaluate_manifest(
+    rows: list[dict[str, Any]], splits: tuple[str, ...] = ("calibration", "held_out")
+) -> dict[str, Any]:
+    if not splits or any(split not in {"calibration", "held_out"} for split in splits):
+        raise ValueError("select at least one known evaluation split")
+    negative_labels_complete = not any("recording_id" in row for row in rows)
     originals: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     distractors: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     attacks: dict[str, list[dict[str, Any]]] = defaultdict(list)
     source_splits: dict[str, str] = {}
+    recording_splits: dict[str, str] = {}
     image_ids: set[str] = set()
     for row in rows:
         source_id, split, image_id = row["source_id"], row["split"], row["image_id"]
@@ -92,6 +99,11 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"unknown split: {split}")
         if source_id in source_splits and source_splits[source_id] != split:
             raise ValueError(f"source split leakage: {source_id}")
+        recording_id = row.get("recording_id")
+        if recording_id is not None:
+            if recording_id in recording_splits and recording_splits[recording_id] != split:
+                raise ValueError(f"recording split leakage: {recording_id}")
+            recording_splits[recording_id] = split
         if image_id in image_ids:
             raise ValueError(f"duplicate image ID: {image_id}")
         source_splits[source_id] = split
@@ -124,9 +136,10 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "sources": sum(len(group) for group in originals.values()),
         "distractors": sum(len(group) for group in distractors.values()),
         "suppression_approved": False,
+        "negative_labels_complete": negative_labels_complete,
         "splits": {},
     }
-    for split in ("calibration", "held_out"):
+    for split in splits:
         base = originals[split] | distractors[split]
         base_hashes = {
             source_id: _fingerprint(Path(row["path"])) for source_id, row in base.items()
@@ -174,7 +187,12 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     if other_id != source_id:
                         bucket["negative_candidates_verified"] += 1
                     if result.accepted:
-                        bucket["true_positive" if other_id == source_id else "false_positive"] += 1
+                        if other_id == source_id:
+                            bucket["true_positive"] += 1
+                        elif negative_labels_complete:
+                            bucket["false_positive"] += 1
+                        else:
+                            bucket["accepted_unlabeled_pairs"] += 1
                 if result.accepted and other_id == source_id:
                     accepted_self = True
             if not accepted_self:
@@ -230,22 +248,25 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
         report["splits"][split] = {
             "source_count": len(originals[split]),
             "distractor_count": len(distractors[split]),
-            "overall": _summary(totals),
+            "overall": _summary(totals, negative_labels_complete),
             "negative_queries": negative_queries,
             "by_transformation": {
-                name: _summary(bucket) for name, bucket in sorted(by_transform.items())
+                name: _summary(bucket, negative_labels_complete)
+                for name, bucket in sorted(by_transform.items())
             },
         }
     return report
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate the M4 policy on a Copydays manifest")
+    parser = argparse.ArgumentParser(description="Evaluate the M4 policy on a labeled manifest")
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--split", choices=("calibration", "held_out", "both"), default="both")
     args = parser.parse_args()
     rows = [json.loads(line) for line in args.manifest.read_text().splitlines() if line]
-    report = evaluate_manifest(rows)
+    splits = ("calibration", "held_out") if args.split == "both" else (args.split,)
+    report = evaluate_manifest(rows, splits=splits)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))

@@ -132,4 +132,7 @@ suppression. Shadow policy v2 improved
 held-out JPEG-75 recall to 36.2%, but overall recall is 10.6% and no
 nonmatching COCO candidate reached geometric verification. M4 remains in
 progress. Shadow decision records and a revocation drill are in place;
-neither activates derived duplicates.
+neither activates derived duplicates. The owner-supplied Kaggle corpus now
+provides a controlled calibration set: JPEG-75 copies passed 33/33, resize
+passed 24/33, and 10% crops passed 0/33. Its animal-frame hard negatives
+still need semantic labels, and its final recording split remains unscored.

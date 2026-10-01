@@ -121,3 +121,43 @@ def test_evaluation_rejects_changed_file(tmp_path: Path) -> None:
     photo(attacks / "200001.jpg", (80, 90, 100))
     with pytest.raises(ValueError, match="checksum"):
         evaluate_manifest(rows)
+
+
+def test_calibration_only_does_not_evaluate_held_out(tmp_path: Path) -> None:
+    originals = tmp_path / "original"
+    attacks = tmp_path / "jpeg"
+    for source in (200000, 200100):
+        photo(originals / f"{source}.jpg", (20, 30, 40))
+        photo(attacks / f"{source + 1}.jpg", (20, 30, 40))
+    report = evaluate_manifest(build_manifest(originals, [attacks]), splits=("calibration",))
+    assert set(report["splits"]) == {"calibration"}
+    assert report["sources"] == 2
+
+
+def test_unlabeled_kaggle_negatives_do_not_claim_precision(tmp_path: Path) -> None:
+    originals = tmp_path / "original"
+    attacks = tmp_path / "jpeg"
+    for source in (200000, 200100):
+        photo(originals / f"{source}.jpg", (20, 30, 40))
+        photo(attacks / f"{source + 1}.jpg", (20, 30, 40))
+    rows = build_manifest(originals, [attacks])
+    for row in rows:
+        row["recording_id"] = f"recording:{row['source_id']}"
+    report = evaluate_manifest(rows)
+    assert report["negative_labels_complete"] is False
+    for split in report["splits"].values():
+        assert split["overall"]["precision"] is None
+        assert split["overall"]["false_positive"] is None
+
+
+def test_evaluation_rejects_recording_split_leakage(tmp_path: Path) -> None:
+    originals = tmp_path / "original"
+    attacks = tmp_path / "jpeg"
+    for source in (200000, 200100):
+        photo(originals / f"{source}.jpg", (20, 30, 40))
+        photo(attacks / f"{source + 1}.jpg", (20, 30, 40))
+    rows = build_manifest(originals, [attacks])
+    for row in rows:
+        row["recording_id"] = "shared-video"
+    with pytest.raises(ValueError, match="recording split leakage"):
+        evaluate_manifest(rows)
