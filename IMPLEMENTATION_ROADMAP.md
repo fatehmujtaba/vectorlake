@@ -140,3 +140,9 @@ The owner has since defined different-timestamp animal frames as distinct;
 the chronological shadow sample accepted earlier-frame matches for 38/48
 queries. Near-copy activation is therefore blocked, and exact/pixel dedup
 also needs a capture-identity review before claiming observation preservation.
+The [capture identity plan](image_embedding_platform_docs/14_CAPTURE_IDENTITY_PLAN.md)
+tracks the staged fix. Its first contract slice records an optional client-
+asserted `capture_id`; that field does not yet alter dedup decisions. The next
+implementation step is to define authenticated capture provenance and separate
+content reuse from observation suppression, with same-content/different-capture
+tests, before revisiting the held-out quality gate.

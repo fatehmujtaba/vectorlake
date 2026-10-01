@@ -128,7 +128,8 @@ dedup scope, not by capture identity. Two separately captured observations
 with identical bytes or pixels could be coalesced before near-copy search.
 Before calling the whole pipeline observation-preserving, the upload contract
 needs a trustworthy capture/observation identity and the exact/pixel
-deduplication policy must be reviewed against it.
+deduplication policy must be reviewed against it. The staged implementation
+is tracked in [the capture identity plan](14_CAPTURE_IDENTITY_PLAN.md).
 
 ## Remaining gate
 

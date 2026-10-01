@@ -60,11 +60,18 @@ class UploadService:
         content_type: str,
         size_bytes: int,
         traceparent: str = "",
+        capture_id: str | None = None,
     ) -> UploadSession:
         scope_id = self._scope(tenant_id)
+        request_body: dict[str, str | int] = {
+            "content_type": content_type,
+            "size_bytes": size_bytes,
+        }
+        if capture_id is not None:
+            request_body["capture_id"] = capture_id
         request_hash = hashlib.sha256(
             json.dumps(
-                {"content_type": content_type, "size_bytes": size_bytes},
+                request_body,
                 sort_keys=True,
                 separators=(",", ":"),
             ).encode()
@@ -95,6 +102,8 @@ class UploadService:
         }
         if traceparent:
             image["traceparent"] = {"S": traceparent}
+        if capture_id is not None:
+            image["capture_id"] = {"S": capture_id}
         try:
             self.ddb.transact_write_items(
                 TransactItems=[
@@ -166,4 +175,6 @@ class UploadService:
         for name in ("validation_status", "dedup_status"):
             if name in image:
                 status[name] = image[name]["S"]
+        if "capture_id" in image:
+            status["capture_id"] = image["capture_id"]["S"]
         return status

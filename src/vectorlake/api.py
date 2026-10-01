@@ -15,6 +15,9 @@ from vectorlake.ingestion import IdempotencyConflict, UploadService
 class UploadSessionRequest(BaseModel):
     content_type: str = Field(pattern=r"^image/(jpeg|png|webp)$")
     size_bytes: int = Field(ge=1, le=20_000_000)
+    capture_id: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$"
+    )
 
 
 def create_app(upload_service: UploadService | None = None) -> FastAPI:
@@ -57,6 +60,7 @@ def create_app(upload_service: UploadService | None = None) -> FastAPI:
                 request.content_type,
                 request.size_bytes,
                 traceparent or "",
+                request.capture_id,
             )
         except IdempotencyConflict as exc:
             raise HTTPException(
