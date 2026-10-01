@@ -22,14 +22,25 @@ def test_upload_capture_id_is_forwarded_and_validated(monkeypatch: pytest.Monkey
         response = client.post(
             "/v1/upload-sessions",
             headers=headers,
-            json={"content_type": "image/png", "size_bytes": 123, "capture_id": "camera-1:frame-2"},
+            json={
+                "content_type": "image/png",
+                "size_bytes": 123,
+                "source_id": "camera-1",
+                "capture_id": "frame-2",
+            },
         )
         assert response.status_code == 201
-        assert service.create_session.call_args.args[-1] == "camera-1:frame-2"
+        assert service.create_session.call_args.args[-2:] == ("frame-2", "camera-1")
         invalid = client.post(
             "/v1/upload-sessions",
             headers=headers,
             json={"content_type": "image/png", "size_bytes": 123, "capture_id": "bad/path"},
         )
         assert invalid.status_code == 422
+        missing_source = client.post(
+            "/v1/upload-sessions",
+            headers=headers,
+            json={"content_type": "image/png", "size_bytes": 123, "capture_id": "frame-2"},
+        )
+        assert missing_source.status_code == 422
         assert service.create_session.call_count == 1

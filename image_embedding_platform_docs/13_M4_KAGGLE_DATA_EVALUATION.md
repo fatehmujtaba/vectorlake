@@ -122,21 +122,20 @@ recording, not a population-wide false-positive-rate estimate. It is enough
 to fail the safety gate. The held-out recording split remains unscored, and
 fuzzy suppression remains disabled.
 
-The same observation rule also exposes an architecture question outside this
-shadow path: byte and canonical-pixel identity are currently scoped by tenant
-dedup scope, not by capture identity. Two separately captured observations
-with identical bytes or pixels could be coalesced before near-copy search.
-The deterministic worker now isolates exact/pixel claims by asserted capture
-ID, and treats missing IDs as separate observations. Trustworthy producer
-identity, collision prevention, and a v1 replay/migration plan are still
-required before claiming an operationally observation-preserving pipeline.
+The same observation rule exposed an architecture issue outside the shadow
+path: scope-wide byte/pixel identity could coalesce different captures before
+near-copy search. Deterministic policy v3 now isolates exact/pixel claims by
+asserted source/capture pair and treats missing IDs as separate observations.
+Trustworthy producer identity, collision prevention, and v1/v2 state migration
+are still required before claiming an operationally observation-preserving
+pipeline.
 The staged implementation is tracked in
 [the capture identity plan](14_CAPTURE_IDENTITY_PLAN.md).
 
 ## Remaining gate
 
-1. Review exact/pixel deduplication against capture identity under the agreed
-   distinct-timestamp rule.
+1. Bind authenticated producer identity to source IDs and complete the
+   deterministic v1/v2 migration and replay plan.
 2. Add a separately sourced, representative hard-negative corpus; this single
    animal recording cannot provide source-disjoint animal calibration and final
    evidence.

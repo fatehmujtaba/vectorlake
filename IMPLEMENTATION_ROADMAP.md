@@ -143,8 +143,10 @@ queries. Near-copy activation is therefore blocked, and exact/pixel dedup
 also needs a capture-identity review before claiming observation preservation.
 The [capture identity plan](image_embedding_platform_docs/14_CAPTURE_IDENTITY_PLAN.md)
 tracks the staged fix. The upload contract records an optional client-asserted
-`capture_id`, and deterministic dedup v2 isolates claims by capture; legacy
-uploads without provenance remain separate observations. The next step is to
-define authenticated producer provenance and a v1-state migration/replay plan,
-then add source-collision and operational tests before revisiting the held-out
-quality gate.
+source/capture pair, and deterministic dedup v3 isolates claims by both IDs;
+uploads without provenance remain separate observations. Completed records
+from a prior or unmarked policy are skipped on replay rather than silently
+reclassified. The next step
+is to bind authenticated producer identity to `source_id`, inventory and
+migrate v1/v2 state, and complete operational replay tests before revisiting
+the held-out quality gate.

@@ -8,7 +8,7 @@ from confluent_kafka import Consumer
 from vectorlake.common.local import LocalInfrastructureSettings
 from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import deserialize_event
-from vectorlake.processor import ImageProcessor
+from vectorlake.processor import AlreadyProcessedPriorPolicy, ImageProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,10 @@ def main() -> None:
                 event = deserialize_event("image.received.v1", payload)
                 if not isinstance(event, events_pb2.ImageReceivedV1):
                     raise TypeError("unexpected event type")
-                processor.process(event)
+                try:
+                    processor.process(event)
+                except AlreadyProcessedPriorPolicy:
+                    logger.info("skipping completed prior-policy image %s", event.context.image_id)
                 consumer.commit(message=message, asynchronous=False)
         except KeyboardInterrupt:
             break

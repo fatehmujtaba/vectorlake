@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from io import BytesIO
 from unittest.mock import Mock, patch
 
@@ -8,7 +9,7 @@ from PIL import Image, PngImagePlugin
 
 from vectorlake.common.resources import IMAGE_TABLE, RAW_BUCKET
 from vectorlake.events.v1 import events_pb2
-from vectorlake.processor import EXACT_TABLE, PIXEL_TABLE, ImageProcessor
+from vectorlake.processor import EXACT_TABLE, PIXEL_TABLE, ImageProcessor, observation_namespace
 
 
 def png(comment: str = "") -> bytes:
@@ -53,7 +54,9 @@ class EvaluationHarness:
         self.processor.s3 = Mock()
         self.processor.s3.get_object.side_effect = self.get_object
 
-    def add(self, image_id: str, data: bytes, capture_id: str | None) -> events_pb2.ImageReceivedV1:
+    def add(
+        self, image_id: str, data: bytes, capture_id: str | None, source_id: str = "camera-1"
+    ) -> events_pb2.ImageReceivedV1:
         received = event(image_id, data)
         state = {
             "tenant_id": {"S": "tenant-1"},
@@ -65,6 +68,7 @@ class EvaluationHarness:
         }
         if capture_id is not None:
             state["capture_id"] = {"S": capture_id}
+            state["source_id"] = {"S": source_id}
         self.states[image_id] = state
         self.objects[received.object_key] = data
         return received
@@ -103,6 +107,9 @@ def test_exact_dedup_preserves_distinct_and_legacy_observations() -> None:
         first = harness.processor.evaluate(harness.add("first", data, "frame-1"))
         same = harness.processor.evaluate(harness.add("same", data, "frame-1"))
         distinct = harness.processor.evaluate(harness.add("distinct", data, "frame-2"))
+        other_source = harness.processor.evaluate(
+            harness.add("other-source", data, "frame-1", "camera-2")
+        )
         legacy_a = harness.processor.evaluate(harness.add("legacy-a", data, None))
         legacy_b = harness.processor.evaluate(harness.add("legacy-b", data, None))
 
@@ -110,9 +117,10 @@ def test_exact_dedup_preserves_distinct_and_legacy_observations() -> None:
     assert same.dedup_status == "duplicate_exact"
     assert same.owner_image_id == "first"
     assert isinstance(same.message, events_pb2.ImageDuplicateV1)
-    assert same.message.policy_version == "exact-v2"
+    assert same.message.policy_version == "exact-v3"
     assert distinct.dedup_status == "unique"
     assert distinct.duplicate_group_id != first.duplicate_group_id
+    assert other_source.dedup_status == "unique"
     assert legacy_a.dedup_status == legacy_b.dedup_status == "unique"
     assert legacy_a.duplicate_group_id != legacy_b.duplicate_group_id
 
@@ -133,5 +141,15 @@ def test_pixel_dedup_requires_same_capture_id() -> None:
     assert same.dedup_status == "duplicate_pixel"
     assert same.owner_image_id == "first"
     assert isinstance(same.message, events_pb2.ImageDuplicateV1)
-    assert same.message.policy_version == "pixel-v2"
+    assert same.message.policy_version == "pixel-v3"
     assert distinct.dedup_status == "unique"
+
+
+def test_source_qualification_preserves_capture_only_registry_key() -> None:
+    old_digest = hashlib.sha256(b"frame-1").hexdigest()
+    assert observation_namespace("scope-1", "image-1", "frame-1", None) == (
+        f"SCOPE#scope-1#CAPTURE#{old_digest}"
+    )
+    assert observation_namespace("scope-1", "image-1", "frame-1", "camera-1") != (
+        f"SCOPE#scope-1#CAPTURE#{old_digest}"
+    )

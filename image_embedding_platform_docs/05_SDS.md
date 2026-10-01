@@ -279,6 +279,7 @@ Fields:
 image_id
 tenant_id
 dedup_scope_id
+source_id (optional client-asserted producer/source)
 capture_id (optional client-asserted source observation)
 bucket
 object_key
@@ -324,10 +325,11 @@ duplicate_group_id
 created_at
 ```
 
-In deterministic policy v2, `observation_namespace` is
-`SCOPE#{scope_id}#CAPTURE#{sha256(capture_id)}` when a capture ID is supplied,
-otherwise `SCOPE#{scope_id}#IMAGE#{image_id}`. The latter deliberately avoids
-collapsing observations with missing provenance. See the
+In deterministic policy v3, `observation_namespace` is
+`SCOPE#{scope_id}#CAPTURE#{sha256(json([source_id,capture_id]))}` for a
+source/capture pair, otherwise `SCOPE#{scope_id}#IMAGE#{image_id}`. The latter
+deliberately avoids collapsing observations with missing provenance. Stored
+capture-only v2 rows retain their original `sha256(capture_id)` namespace. See the
 [capture identity plan](14_CAPTURE_IDENTITY_PLAN.md) for rollout prerequisites.
 
 ### `duplicate_groups`

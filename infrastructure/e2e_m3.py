@@ -33,9 +33,12 @@ def received_event(
     data: bytes,
     tenant_id: str = "local-dev",
     capture_id: str | None = None,
+    source_id: str | None = None,
 ) -> events_pb2.ImageReceivedV1:
+    if capture_id is not None and source_id is None:
+        source_id = f"{tenant_id}-camera"
     session = service.create_session(
-        tenant_id, uuid4().hex, "image/png", len(data), capture_id=capture_id
+        tenant_id, uuid4().hex, "image/png", len(data), capture_id=capture_id, source_id=source_id
     )
     response = httpx.put(
         session.upload_url, content=data, headers=session.upload_headers, timeout=10
@@ -102,6 +105,11 @@ def verify() -> dict[str, object]:
     distinct_outcome = processor.process(distinct)
     assert distinct_outcome.dedup_status == "unique"
     assert distinct_outcome.duplicate_group_id != original_outcome.duplicate_group_id
+    other_source = received_event(
+        service, original_bytes, capture_id=capture_id, source_id="another-camera"
+    )
+    other_source_outcome = processor.process(other_source)
+    assert other_source_outcome.dedup_status == "unique"
     legacy = received_event(service, original_bytes)
     legacy_outcome = processor.process(legacy)
     assert legacy_outcome.dedup_status == "unique"
@@ -178,6 +186,7 @@ def verify() -> dict[str, object]:
         "exact": exact_outcome.dedup_status,
         "pixel": pixel_outcome.dedup_status,
         "distinct_capture": distinct_outcome.dedup_status,
+        "same_capture_id_other_source": other_source_outcome.dedup_status,
         "legacy_observation": legacy_outcome.dedup_status,
         "malformed": invalid_outcome.message.error_code,
         "bit_depth": [gray8_outcome.dedup_status, gray16_outcome.dedup_status],

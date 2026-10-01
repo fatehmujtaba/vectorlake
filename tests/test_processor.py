@@ -6,7 +6,12 @@ import pytest
 
 from vectorlake.events.v1 import events_pb2
 from vectorlake.near_copy import Fingerprint
-from vectorlake.processor import ImageProcessor, ProcessingOutcome, RetryableProcessingError
+from vectorlake.processor import (
+    AlreadyProcessedPriorPolicy,
+    ImageProcessor,
+    ProcessingOutcome,
+    RetryableProcessingError,
+)
 
 
 def received() -> events_pb2.ImageReceivedV1:
@@ -50,6 +55,7 @@ def test_kafka_ack_controls_state_update(pending: bool) -> None:
     processor.producer = Mock()
     processor.producer.flush.return_value = 1 if pending else 0
     with (
+        patch.object(ImageProcessor, "_state", return_value={}),
         patch.object(ImageProcessor, "evaluate", return_value=outcome()),
         patch.object(ImageProcessor, "_record_outcome") as record,
     ):
@@ -94,6 +100,7 @@ def test_index_only_after_event_and_state_are_recorded() -> None:
         fingerprint=Fingerprint("0" * 64, 90),
     )
     with (
+        patch.object(ImageProcessor, "_state", return_value={}),
         patch.object(ImageProcessor, "evaluate", return_value=ready),
         patch.object(ImageProcessor, "_publish") as publish,
         patch.object(ImageProcessor, "_record_outcome") as record,
@@ -102,3 +109,20 @@ def test_index_only_after_event_and_state_are_recorded() -> None:
     publish.assert_called_once()
     record.assert_called_once()
     processor.index.add.assert_called_once_with("scope-1", "image-1", Fingerprint("0" * 64, 90))
+
+
+@pytest.mark.parametrize("recorded_policy", [None, "capture-v2"])
+def test_completed_prior_policy_image_is_not_republished(recorded_policy: str | None) -> None:
+    processor = object.__new__(ImageProcessor)
+    state = {"dedup_status": {"S": "unique"}}
+    if recorded_policy is not None:
+        state["deterministic_policy_version"] = {"S": recorded_policy}
+    with (
+        patch.object(ImageProcessor, "_state", return_value=state),
+        patch.object(ImageProcessor, "evaluate") as evaluate,
+        patch.object(ImageProcessor, "_publish") as publish,
+    ):
+        with pytest.raises(AlreadyProcessedPriorPolicy, match="image-1"):
+            processor.process(received())
+    evaluate.assert_not_called()
+    publish.assert_not_called()

@@ -78,12 +78,12 @@ curl -sS -X POST http://127.0.0.1:8000/v1/upload-sessions \
 Use the returned `upload_url` and *both* `upload_headers` with a direct HTTP
 PUT. The URL expires after 15 minutes; replaying the same idempotency key
 returns the same image and a fresh URL. A conflicting replay returns 409.
-The body may include a `capture_id` such as `camera-1:frame-2`; it is a
-client-asserted source-observation key, returned in image status and included
-in idempotency. Exact/pixel suppression applies only within the same capture
-ID. Different captures must use different IDs; uploads without one remain
-separate observations even when their content matches. Derived copies may
-refer to the source capture.
+The body may include both `source_id` and `capture_id`, for example
+`"source_id":"camera-1","capture_id":"frame-2"`. They are client-asserted,
+returned in image status, and included in idempotency. Exact/pixel suppression
+applies only within the same source and capture. Different captures or sources
+remain separate; uploads without either ID remain separate observations even
+when content matches. Derived copies may refer to the same source/capture.
 `If-None-Match: *` prevents normal overwrites, and the bucket is versioned.
 The pinned Floci image accepts the signed local PUT but its optional signature
 validator rejected even a minimal boto3 SigV4 URL in testing. Local expiration

@@ -61,7 +61,13 @@ class UploadService:
         size_bytes: int,
         traceparent: str = "",
         capture_id: str | None = None,
+        source_id: str | None = None,
     ) -> UploadSession:
+        if (source_id is None) != (capture_id is None):
+            raise ValueError("source_id and capture_id must be supplied together")
+        if capture_id is not None and (not capture_id or not source_id):
+            raise ValueError("source_id and capture_id must be nonempty")
+        paired_source_id = source_id or ""
         scope_id = self._scope(tenant_id)
         request_body: dict[str, str | int] = {
             "content_type": content_type,
@@ -69,6 +75,7 @@ class UploadService:
         }
         if capture_id is not None:
             request_body["capture_id"] = capture_id
+            request_body["source_id"] = paired_source_id
         request_hash = hashlib.sha256(
             json.dumps(
                 request_body,
@@ -104,6 +111,7 @@ class UploadService:
             image["traceparent"] = {"S": traceparent}
         if capture_id is not None:
             image["capture_id"] = {"S": capture_id}
+            image["source_id"] = {"S": paired_source_id}
         try:
             self.ddb.transact_write_items(
                 TransactItems=[
@@ -177,4 +185,6 @@ class UploadService:
                 status[name] = image[name]["S"]
         if "capture_id" in image:
             status["capture_id"] = image["capture_id"]["S"]
+        if "source_id" in image:
+            status["source_id"] = image["source_id"]["S"]
         return status

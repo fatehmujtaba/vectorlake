@@ -33,17 +33,29 @@ EXACT_TABLE = "exact_hash_registry"
 PIXEL_TABLE = "pixel_hash_registry"
 MODEL_ROUTE = "resnet18-v1"
 EVIDENCE_TABLE = "near_copy_evidence"
+DETERMINISTIC_POLICY_VERSION = "capture-source-v3"
 logger = logging.getLogger(__name__)
 
 
-def observation_namespace(scope_id: str, image_id: str, capture_id: str | None) -> str:
+def observation_namespace(
+    scope_id: str, image_id: str, capture_id: str | None, source_id: str | None
+) -> str:
     if capture_id:
-        capture_digest = hashlib.sha256(capture_id.encode()).hexdigest()
+        identity = (
+            json.dumps([source_id, capture_id], separators=(",", ":")).encode()
+            if source_id
+            else capture_id.encode()
+        )
+        capture_digest = hashlib.sha256(identity).hexdigest()
         return f"SCOPE#{scope_id}#CAPTURE#{capture_digest}"
     return f"SCOPE#{scope_id}#IMAGE#{image_id}"
 
 
 class RetryableProcessingError(Exception):
+    pass
+
+
+class AlreadyProcessedPriorPolicy(Exception):
     pass
 
 
@@ -127,7 +139,7 @@ class ImageProcessor:
             duplicate_group_id=group_id,
             representative_image_id=owner_image_id,
             duplicate_class=duplicate_class,
-            policy_version=f"{kind}-v2",
+            policy_version=f"{kind}-v3",
             decision_record_id=str(
                 uuid5(NAMESPACE_URL, f"decision/{event.context.image_id}/{kind}/{owner_image_id}")
             ),
@@ -335,7 +347,10 @@ class ImageProcessor:
 
                 scope = event.context.dedup_scope_id
                 namespace = observation_namespace(
-                    scope, event.context.image_id, state.get("capture_id", {}).get("S")
+                    scope,
+                    event.context.image_id,
+                    state.get("capture_id", {}).get("S"),
+                    state.get("source_id", {}).get("S"),
                 )
                 exact_key = f"{namespace}#SHA256#{streamed.byte_sha256}"
                 existing = self.ddb.get_item(
@@ -421,18 +436,24 @@ class ImageProcessor:
             ":dedup": {"S": outcome.dedup_status},
             ":group": {"S": outcome.duplicate_group_id},
             ":owner": {"S": outcome.owner_image_id},
+            ":policy": {"S": DETERMINISTIC_POLICY_VERSION},
         }
         self.ddb.update_item(
             TableName=IMAGE_TABLE,
             Key={"image_id": {"S": event.context.image_id}},
             UpdateExpression=(
                 "SET validation_status = :validation, dedup_status = :dedup, "
-                "duplicate_group_id = :group, representative_image_id = :owner"
+                "duplicate_group_id = :group, representative_image_id = :owner, "
+                "deterministic_policy_version = :policy"
             ),
             ExpressionAttributeValues=values,
         )
 
     def process(self, event: events_pb2.ImageReceivedV1) -> ProcessingOutcome:
+        state = self._state(event)
+        recorded_policy = state.get("deterministic_policy_version", {}).get("S")
+        if "dedup_status" in state and recorded_policy != DETERMINISTIC_POLICY_VERSION:
+            raise AlreadyProcessedPriorPolicy(event.context.image_id)
         outcome = self.evaluate(event)
         self._publish(outcome, event.context.image_id)
         self._record_outcome(event, outcome)

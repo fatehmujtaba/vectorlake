@@ -5,7 +5,7 @@ from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from vectorlake.common.config import get_settings
 from vectorlake.common.local import LocalInfrastructureSettings
@@ -18,6 +18,15 @@ class UploadSessionRequest(BaseModel):
     capture_id: str | None = Field(
         default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$"
     )
+    source_id: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$"
+    )
+
+    @model_validator(mode="after")
+    def source_and_capture_are_paired(self) -> UploadSessionRequest:
+        if (self.source_id is None) != (self.capture_id is None):
+            raise ValueError("source_id and capture_id must be supplied together")
+        return self
 
 
 def create_app(upload_service: UploadService | None = None) -> FastAPI:
@@ -61,6 +70,7 @@ def create_app(upload_service: UploadService | None = None) -> FastAPI:
                 request.size_bytes,
                 traceparent or "",
                 request.capture_id,
+                request.source_id,
             )
         except IdempotencyConflict as exc:
             raise HTTPException(

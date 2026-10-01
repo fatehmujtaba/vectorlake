@@ -58,22 +58,23 @@ Calculate during the S3 download to avoid a second full read.
 
 Two identical new images can arrive at the same time. Do not perform separate `GET` then `PUT` operations and hope nobody races.
 
-Use a DynamoDB conditional write. Deterministic policy v2 keys ownership by
-dedup scope **and capture namespace**:
+Use a DynamoDB conditional write. Deterministic policy v3 keys ownership by
+dedup scope **and source/capture namespace**:
 
 ```text
-SCOPE#{scope_id}#CAPTURE#{sha256(capture_id)}#SHA256#{digest}
+SCOPE#{scope_id}#CAPTURE#{sha256(json([source_id,capture_id]))}#SHA256#{digest}
 ```
 
 For an upload with no `capture_id`, use `SCOPE#{scope_id}#IMAGE#{image_id}`
 instead of the capture prefix. Canonical-pixel claims use the same namespace
 and append the canonicalization version and pixel digest. This means identical
-content from separately identified captures, or legacy uploads with no
-capture ID, remains separate observations. The caller must assign a unique
-capture ID to each real capture and reuse it only for derivatives; this
-client assertion requires trusted source identity before production rollout.
-The former scope-wide v1 registry is not compatible with v2 replay without a
-migration plan.
+content from separately identified captures, or uploads with no capture ID,
+remains separate observations. The caller must assign a unique capture ID
+within each source and reuse the pair only for derivatives. The source ID must
+be bound to authenticated producer identity before production rollout. Stored
+capture-only v2 records keep their original `sha256(capture_id)` namespace.
+Completed prior-policy records are not re-evaluated on replay; full v1/v2
+migration still needs an explicit backfill and rollback plan.
 
 The first worker claims ownership. The second receives a conditional conflict and resolves the existing owner.
 
@@ -375,11 +376,11 @@ Hash matching must not leak cross-tenant existence information.
 
 Every dedup lookup includes `dedup_scope_id`. Default to tenant scope unless the product explicitly permits broader deduplication.
 
-Deterministic policy v2 keys include scope and capture namespace:
+Deterministic policy v3 keys include scope and source/capture namespace:
 
 ```text
-SCOPE#{scope_id}#CAPTURE#{sha256(capture_id)}#SHA256#{hash}
-SCOPE#{scope_id}#CAPTURE#{sha256(capture_id)}#PIXEL#{version}#{hash}
+SCOPE#{scope_id}#CAPTURE#{sha256(json([source_id,capture_id]))}#SHA256#{hash}
+SCOPE#{scope_id}#CAPTURE#{sha256(json([source_id,capture_id]))}#PIXEL#{version}#{hash}
 ```
 
 For missing capture IDs, substitute `IMAGE#{image_id}` for the capture

@@ -20,26 +20,33 @@ def service() -> UploadService:
 def test_capture_id_is_persisted_and_reported() -> None:
     upload = service()
     with patch.object(UploadService, "_scope", return_value="scope-1"):
-        session = upload.create_session("tenant-1", "key-1", "image/png", 12, capture_id="frame-1")
+        session = upload.create_session(
+            "tenant-1", "key-1", "image/png", 12, capture_id="frame-1", source_id="camera-1"
+        )
     assert session.image_id
     transaction = upload.ddb.transact_write_items.call_args.kwargs["TransactItems"]
     assert transaction[1]["Put"]["Item"]["capture_id"] == {"S": "frame-1"}
+    assert transaction[1]["Put"]["Item"]["source_id"] == {"S": "camera-1"}
     upload.ddb.get_item.return_value = {
         "Item": {
             "tenant_id": {"S": "tenant-1"},
             "ingestion_status": {"S": "pending_upload"},
             "capture_id": {"S": "frame-1"},
+            "source_id": {"S": "camera-1"},
         }
     }
     status = upload.get_status("tenant-1", session.image_id)
     assert status is not None
     assert status["capture_id"] == "frame-1"
+    assert status["source_id"] == "camera-1"
 
 
 def test_capture_id_participates_in_idempotency_request_hash() -> None:
     upload = service()
     with patch.object(UploadService, "_scope", return_value="scope-1"):
-        upload.create_session("tenant-1", "key-1", "image/png", 12, capture_id="frame-1")
+        upload.create_session(
+            "tenant-1", "key-1", "image/png", 12, capture_id="frame-1", source_id="camera-1"
+        )
     transaction = upload.ddb.transact_write_items.call_args.kwargs["TransactItems"]
     original_hash = transaction[0]["Put"]["Item"]["request_hash"]
     upload.ddb.transact_write_items.side_effect = ClientError(
@@ -51,7 +58,27 @@ def test_capture_id_participates_in_idempotency_request_hash() -> None:
         patch.object(UploadService, "_scope", return_value="scope-1"),
         pytest.raises(IdempotencyConflict),
     ):
-        upload.create_session("tenant-1", "key-1", "image/png", 12, capture_id="frame-2")
+        upload.create_session(
+            "tenant-1", "key-1", "image/png", 12, capture_id="frame-2", source_id="camera-1"
+        )
+    with (
+        patch.object(UploadService, "_scope", return_value="scope-1"),
+        pytest.raises(IdempotencyConflict),
+    ):
+        upload.create_session(
+            "tenant-1", "key-1", "image/png", 12, capture_id="frame-1", source_id="camera-2"
+        )
+
+
+def test_capture_and_source_must_be_paired() -> None:
+    upload = service()
+    with pytest.raises(ValueError, match="supplied together"):
+        upload.create_session("tenant-1", "key-1", "image/png", 12, capture_id="frame-1")
+    with pytest.raises(ValueError, match="nonempty"):
+        upload.create_session(
+            "tenant-1", "key-1", "image/png", 12, capture_id="frame-1", source_id=""
+        )
+    upload.ddb.transact_write_items.assert_not_called()
 
 
 def test_legacy_upload_omits_capture_id() -> None:
