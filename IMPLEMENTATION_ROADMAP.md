@@ -147,8 +147,10 @@ source/capture pair, and deterministic dedup v3 isolates claims by both IDs;
 uploads without provenance remain separate observations. Completed records
 from a prior or unmarked policy are skipped on replay rather than silently
 reclassified. The local token now binds one source and the read-only audit
-found 90 completed unversioned records, 31 completed v3 records, and one
-incomplete record in the local table. The next step is to connect a real
-production identity provider that binds a producer to `source_id`, then
-migrate/reconcile v1/v2 state and complete operational replay tests before
-revisiting the held-out quality gate.
+found 92 completed unversioned records, 31 completed v3 records, and one
+incomplete record in the local table. All 36 duplicate owner links checked
+were structurally consistent. The
+[producer authentication contract](image_embedding_platform_docs/15_PRODUCER_AUTH_CONTRACT.md)
+is defined but no production provider is connected. The next step is to select
+one, then reconcile v1/v2 events and downstream mappings before revisiting the
+held-out quality gate.

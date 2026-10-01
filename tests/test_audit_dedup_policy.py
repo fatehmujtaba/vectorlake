@@ -48,6 +48,29 @@ def test_audit_reports_truncation() -> None:
     report = audit(ddb, max_pages=1)
     assert report["complete_scan"] is False
     assert report["policy_counts"] == {"capture-v2": 1}
+    assert report["duplicate_link_counts"] == {"invalid_link_fields": 1}
+
+
+def test_audit_checks_duplicate_owner_scope_and_group() -> None:
+    ddb = Mock()
+    duplicate = {
+        **item("duplicate", "duplicate_exact"),
+        "tenant_id": {"S": "tenant-1"},
+        "dedup_scope_id": {"S": "scope-1"},
+        "duplicate_group_id": {"S": "group-1"},
+        "representative_image_id": {"S": "owner"},
+    }
+    ddb.scan.return_value = {"Items": [duplicate]}
+    ddb.get_item.return_value = {
+        "Item": {
+            "tenant_id": {"S": "tenant-2"},
+            "dedup_scope_id": {"S": "scope-1"},
+            "duplicate_group_id": {"S": "group-1"},
+        }
+    }
+    report = audit(ddb)
+    assert report["duplicate_link_counts"] == {"owner_scope_mismatch": 1}
+    assert report["bad_link_sample_image_ids"] == ["duplicate"]
 
 
 def test_audit_rejects_unbounded_page_request() -> None:

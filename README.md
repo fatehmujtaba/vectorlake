@@ -94,7 +94,9 @@ against the deployment S3 service before release.
 Run `make audit-dedup` against the local emulator to inventory completed
 records by deterministic policy version. The command is read-only, paginated,
 and reports whether its scan covered the whole table. It does not migrate
-records.
+records or verify published events. See the
+[producer authentication contract](image_embedding_platform_docs/15_PRODUCER_AUTH_CONTRACT.md)
+before configuring production uploads.
 The API does not receive image bytes. Run `make bridge` in another terminal
 to forward S3-created notifications from SQS to Kafka; the bridge deletes an
 SQS message only after the Kafka delivery callback succeeds and state is

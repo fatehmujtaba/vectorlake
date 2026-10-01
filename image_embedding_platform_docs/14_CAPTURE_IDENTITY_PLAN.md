@@ -71,11 +71,11 @@ and retire v1/v2 registries only after a validated backfill and rollback plan.
 Drain or stop older processor versions before v3 workers start; mixed worker
 versions can race to write different outcomes on the same image state.
 
-The local development token is now bound to one configured source ID; the API
-returns 403 for a different claimed source. This exercises the authorization
-contract but does not replace production producer authentication. The read-only
-`make audit-dedup` command scans the local image table with bounded pagination
-and reports partial coverage explicitly. On 2026-10-01, the local table had
-122 records: 90 completed without a policy marker, 31 completed under v3, and
-one incomplete. Nine records had only part of the source/capture pair. These
-are development fixtures, not a production inventory or a migration.
+The local development token is bound to one configured source ID; the API
+returns 403 for a different claimed source. The
+[producer authentication contract](15_PRODUCER_AUTH_CONTRACT.md) describes the
+production boundary that remains to be integrated. The read-only
+`make audit-dedup` command reported 124 local images on 2026-10-01: 92
+completed without a policy marker, 31 completed under v3, and one incomplete.
+All 36 duplicate owner links checked were structurally consistent. These are
+development fixtures, not a production inventory or a migration.

@@ -18,7 +18,9 @@ def audit(ddb: Any, *, max_pages: int = 100, page_size: int = 100) -> dict[str, 
     status_counts: Counter[str] = Counter()
     policy_counts: Counter[str] = Counter()
     provenance_counts: Counter[str] = Counter()
+    duplicate_link_counts: Counter[str] = Counter()
     prior_samples: list[str] = []
+    bad_link_samples: list[str] = []
     cursor: dict[str, Any] | None = None
     pages = 0
     images = 0
@@ -26,7 +28,8 @@ def audit(ddb: Any, *, max_pages: int = 100, page_size: int = 100) -> dict[str, 
         request: dict[str, Any] = {
             "TableName": IMAGE_TABLE,
             "ProjectionExpression": (
-                "image_id,dedup_status,deterministic_policy_version,source_id,capture_id"
+                "image_id,tenant_id,dedup_scope_id,dedup_status,deterministic_policy_version,"
+                "source_id,capture_id,duplicate_group_id,representative_image_id"
             ),
             "ConsistentRead": True,
             "Limit": page_size,
@@ -57,6 +60,33 @@ def audit(ddb: Any, *, max_pages: int = 100, page_size: int = 100) -> dict[str, 
                 if not source and not capture
                 else "partial"
             ] += 1
+            if status and status.startswith("duplicate_"):
+                owner_id = item.get("representative_image_id", {}).get("S")
+                group_id = item.get("duplicate_group_id", {}).get("S")
+                if not owner_id or not group_id or owner_id == item["image_id"]["S"]:
+                    link_status = "invalid_link_fields"
+                else:
+                    owner = ddb.get_item(
+                        TableName=IMAGE_TABLE,
+                        Key={"image_id": {"S": owner_id}},
+                        ProjectionExpression="tenant_id,dedup_scope_id,duplicate_group_id",
+                        ConsistentRead=True,
+                    ).get("Item")
+                    if owner is None:
+                        link_status = "owner_missing"
+                    elif owner.get("tenant_id", {}).get("S") != item.get("tenant_id", {}).get(
+                        "S"
+                    ) or owner.get("dedup_scope_id", {}).get("S") != item.get(
+                        "dedup_scope_id", {}
+                    ).get("S"):
+                        link_status = "owner_scope_mismatch"
+                    elif owner.get("duplicate_group_id", {}).get("S") != group_id:
+                        link_status = "group_mismatch"
+                    else:
+                        link_status = "consistent"
+                duplicate_link_counts[link_status] += 1
+                if link_status != "consistent" and len(bad_link_samples) < 20:
+                    bad_link_samples.append(item["image_id"]["S"])
         cursor = response.get("LastEvaluatedKey")
         if cursor is None:
             break
@@ -68,6 +98,8 @@ def audit(ddb: Any, *, max_pages: int = 100, page_size: int = 100) -> dict[str, 
         "status_counts": dict(sorted(status_counts.items())),
         "policy_counts": dict(sorted(policy_counts.items())),
         "provenance_counts": dict(sorted(provenance_counts.items())),
+        "duplicate_link_counts": dict(sorted(duplicate_link_counts.items())),
+        "bad_link_sample_image_ids": bad_link_samples,
         "prior_complete_sample_image_ids": prior_samples,
     }
 
