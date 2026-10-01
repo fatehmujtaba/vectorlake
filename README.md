@@ -119,9 +119,11 @@ make processor-down
 M4's scoped PDQ, geometric verifier, evaluation harness, and compensation
 drill are described in the [shadow evaluation note](image_embedding_platform_docs/12_M4_SHADOW_EVALUATION.md).
 The Copydays release gate remains open. Archived originals, JPEG, and strong
-attacks are now available locally, but the first held-out run found only 0.6%
-verified recall and no nonmatching candidates reached verification. Fuzzy
-suppression remains disabled; see the evaluation note for the measured gate.
+attacks and 5,000 COCO distractors are now available locally. Shadow policy
+v2 improves held-out verified recall to 10.6% overall, but no nonmatching
+candidate reached verification and distinct images with local changes can
+still look like copies. Fuzzy suppression remains disabled; see the
+evaluation note for the measured gate.
 
 ```sh
 make evaluate-m4

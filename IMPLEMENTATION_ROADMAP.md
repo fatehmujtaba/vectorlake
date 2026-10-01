@@ -125,9 +125,11 @@ their tests with the change. At completion, report:
 
 Do not mark a milestone complete until its exit checks pass. Update this table
 when a milestone changes state. The immediate implementation step is to
-diagnose the Copydays JPEG verification failure on calibration sources, add
-failure-reason reporting and realistic hard negatives, and re-evaluate the
-source-disjoint release gate before permitting near-copy suppression. The
-first held-out run found 0.6% verified recall, so M4 remains in progress.
-Shadow decision records and a revocation drill are in place; neither
-activates derived duplicates.
+obtain the official Copydays crop attacks and labeled unique-but-similar
+images from the target domain, then calibrate a defensible false-positive
+gate on fresh source-disjoint final data before permitting near-copy
+suppression. Shadow policy v2 improved
+held-out JPEG-75 recall to 36.2%, but overall recall is 10.6% and no
+nonmatching COCO candidate reached geometric verification. M4 remains in
+progress. Shadow decision records and a revocation drill are in place;
+neither activates derived duplicates.

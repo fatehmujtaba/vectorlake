@@ -31,7 +31,9 @@ def _file_identity(path: Path) -> dict[str, str | int]:
     return {"size_bytes": path.stat().st_size, "sha256": digest}
 
 
-def build_manifest(original_dir: Path, attack_dirs: list[Path]) -> list[dict[str, Any]]:
+def build_manifest(
+    original_dir: Path, attack_dirs: list[Path], distractor_dir: Path | None = None
+) -> list[dict[str, Any]]:
     originals: dict[str, Path] = {}
     for path in _images(original_dir):
         source_id = _source_id(path)
@@ -83,6 +85,28 @@ def build_manifest(original_dir: Path, attack_dirs: list[Path]) -> list[dict[str
                     **_file_identity(path),
                 }
             )
+    if distractor_dir is not None:
+        distractor_paths = _images(distractor_dir)
+        if not distractor_paths:
+            raise ValueError("no distractor images found")
+        for path in distractor_paths:
+            image_id = f"distractor/{path.relative_to(distractor_dir).as_posix()}"
+            rows.append(
+                {
+                    "image_id": image_id,
+                    "source_id": image_id,
+                    "expected_relationship": "DISTRACTOR",
+                    "transformation": "distractor",
+                    "parameters": {},
+                    "split": (
+                        "held_out"
+                        if hashlib.sha256(image_id.encode()).digest()[0] < 77
+                        else "calibration"
+                    ),
+                    "path": str(path.resolve()),
+                    **_file_identity(path),
+                }
+            )
     if len({row["image_id"] for row in rows}) != len(rows):
         raise ValueError("manifest image IDs are not unique")
     if not any(row["expected_relationship"] == "DERIVED_COPY" for row in rows):
@@ -94,12 +118,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build a source-disjoint Copydays JSONL manifest")
     parser.add_argument("--original-dir", type=Path, required=True)
     parser.add_argument("--attack-dir", type=Path, action="append", required=True)
+    parser.add_argument("--distractor-dir", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    rows = build_manifest(args.original_dir, args.attack_dir)
+    rows = build_manifest(args.original_dir, args.attack_dir, args.distractor_dir)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
-    print(json.dumps({"rows": len(rows), "sources": len({row["source_id"] for row in rows})}))
+    print(
+        json.dumps(
+            {
+                "rows": len(rows),
+                "sources": sum(row["expected_relationship"] == "ORIGINAL" for row in rows),
+                "distractors": sum(row["expected_relationship"] == "DISTRACTOR" for row in rows),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

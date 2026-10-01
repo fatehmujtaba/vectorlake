@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 from skimage.metrics import structural_similarity
 
 MAX_SIDE = 1024
-POLICY_VERSION = "near-copy-shadow-v1"
+POLICY_VERSION = "near-copy-shadow-v2"
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,8 @@ class NearCopyPolicy:
     max_reprojection_error: float = 3.0
     min_overlap: float = 0.50
     min_ssim: float = 0.90
+    local_ssim_floor: float = 0.50
+    max_low_ssim_component_fraction: float = 0.01
 
 
 DEFAULT_POLICY = NearCopyPolicy()
@@ -104,12 +106,20 @@ def verify(
     if len(matches) < policy.min_inliers:
         return Verification(False, "insufficient_matches", matches=len(matches))
 
-    src = np.asarray(
-        [query_points[match.queryIdx].pt for match in matches], dtype=np.float32
-    ).reshape(-1, 1, 2)
-    dst = np.asarray(
-        [candidate_points[match.trainIdx].pt for match in matches], dtype=np.float32
-    ).reshape(-1, 1, 2)
+    # Keep RANSAC's pixel threshold in the larger image's coordinates in either call order.
+    query_area = float(query_gray.shape[0] * query_gray.shape[1])
+    candidate_area = float(candidate_gray.shape[0] * candidate_gray.shape[1])
+    if query_area <= candidate_area:
+        small_gray, large_gray = query_gray, candidate_gray
+        small_points = [query_points[match.queryIdx].pt for match in matches]
+        large_points = [candidate_points[match.trainIdx].pt for match in matches]
+    else:
+        small_gray, large_gray = candidate_gray, query_gray
+        small_points = [candidate_points[match.trainIdx].pt for match in matches]
+        large_points = [query_points[match.queryIdx].pt for match in matches]
+    pairs = sorted(zip(small_points, large_points, strict=True), key=lambda pair: pair[0])
+    src = np.asarray([small for small, _ in pairs], dtype=np.float32).reshape(-1, 1, 2)
+    dst = np.asarray([large for _, large in pairs], dtype=np.float32).reshape(-1, 1, 2)
     matrix, mask = cv2.findHomography(src, dst, cv2.RANSAC, 3.0)
     if matrix is None or mask is None or not np.isfinite(matrix).all():
         return Verification(False, "no_geometry", matches=len(matches))
@@ -121,11 +131,9 @@ def verify(
 
     inlier_src = src[inlier_mask].reshape(-1, 2)
     inlier_dst = dst[inlier_mask].reshape(-1, 2)
-    query_area = float(query_gray.shape[0] * query_gray.shape[1])
-    candidate_area = float(candidate_gray.shape[0] * candidate_gray.shape[1])
     coverage = min(
-        cv2.contourArea(cv2.convexHull(inlier_src)) / query_area,
-        cv2.contourArea(cv2.convexHull(inlier_dst)) / candidate_area,
+        cv2.contourArea(cv2.convexHull(inlier_src)) / (small_gray.shape[0] * small_gray.shape[1]),
+        cv2.contourArea(cv2.convexHull(inlier_dst)) / (large_gray.shape[0] * large_gray.shape[1]),
     )
     projected = cv2.perspectiveTransform(inlier_src.reshape(-1, 1, 2), matrix).reshape(-1, 2)
     reprojection = float(np.median(np.linalg.norm(projected - inlier_dst, axis=1)))
@@ -134,10 +142,22 @@ def verify(
             False, "poor_spatial_support", len(matches), inliers, ratio, coverage, reprojection
         )
 
-    height, width = candidate_gray.shape
-    aligned = cv2.warpPerspective(query_gray, matrix, (width, height))
+    height, width = small_gray.shape
+    reduced = cv2.resize(
+        large_gray,
+        (min(large_gray.shape[1], width), min(large_gray.shape[0], height)),
+        interpolation=cv2.INTER_AREA,
+    )
+    scale = np.diag(
+        [reduced.shape[1] / large_gray.shape[1], reduced.shape[0] / large_gray.shape[0], 1]
+    )
+    try:
+        warp = np.linalg.inv(scale @ matrix)
+    except np.linalg.LinAlgError:
+        return Verification(False, "no_geometry", len(matches), inliers, ratio)
+    aligned = cv2.warpPerspective(reduced, warp, (width, height))
     valid = cv2.warpPerspective(
-        np.ones(query_gray.shape, dtype=np.uint8), matrix, (width, height), flags=cv2.INTER_NEAREST
+        np.ones(reduced.shape, dtype=np.uint8), warp, (width, height), flags=cv2.INTER_NEAREST
     ).astype(bool)
     overlap = float(valid.mean())
     if overlap < policy.min_overlap:
@@ -151,14 +171,22 @@ def verify(
             reprojection,
             overlap,
         )
-    score_map = structural_similarity(aligned, candidate_gray, data_range=255, full=True)[1]  # type: ignore[no-untyped-call]
+    score_map = structural_similarity(aligned, small_gray, data_range=255, full=True)[1]  # type: ignore[no-untyped-call]
     # SSIM windows crossing the warp boundary are not evidence.
     interior = cv2.erode(valid.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool)
     score = float(score_map[interior].mean()) if interior.any() else 0.0
     accepted = score >= policy.min_ssim
+    reason = "accepted" if accepted else "low_ssim"
+    if accepted:
+        low_support = ((score_map < policy.local_ssim_floor) & interior).astype(np.uint8)
+        component_count, _, stats, _ = cv2.connectedComponentsWithStats(low_support)
+        largest = int(stats[1:, cv2.CC_STAT_AREA].max()) if component_count > 1 else 0
+        if largest > policy.max_low_ssim_component_fraction * interior.sum():
+            accepted = False
+            reason = "localized_change"
     return Verification(
         accepted,
-        "accepted" if accepted else "low_ssim",
+        reason,
         len(matches),
         inliers,
         ratio,

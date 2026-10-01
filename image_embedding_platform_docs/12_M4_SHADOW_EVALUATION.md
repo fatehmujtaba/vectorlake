@@ -43,6 +43,7 @@ uv run python -m infrastructure.copydays_manifest \
   --original-dir /path/to/copydays_original \
   --attack-dir /path/to/copydays_jpeg \
   --attack-dir /path/to/copydays_strong \
+  --distractor-dir /path/to/val2017 \
   --output .artifacts/m4/copydays_manifest.jsonl
 uv run python -m infrastructure.copydays_evaluation \
   --manifest .artifacts/m4/copydays_manifest.jsonl \
@@ -56,7 +57,8 @@ than by image. Rows include SHA-256 and byte size; the evaluator rejects
 changed files, split leakage, and files outside the
 product's size/dimension limits. It reports candidate recall@5, precision,
 recall, false positives, screened negative pairs, verified negative
-candidates, and verification latency overall and by attack. The report always
+candidates, verification failure reasons, and latency overall and by attack.
+The report always
 sets `suppression_approved=false`; metrics alone do not change the live policy.
 
 ## First real-data measurement (2026-09-30)
@@ -86,6 +88,37 @@ candidate list or geometric verifier. Realistic hard negatives and a larger
 candidate pool are needed before setting a false-positive gate. The current
 policy fails the held-out recall gate, so fuzzy suppression remains disabled.
 
+## Shadow policy v2 measurement (2026-10-01)
+
+The verifier now estimates geometry in a consistent small-to-large direction,
+then compares at the smaller image resolution. A connected low-SSIM region
+covering more than 1% of valid pixels rejects an otherwise accepted match.
+The PDQ radius and global SSIM threshold are unchanged. This is a new shadow
+policy version, not an activation. The [COCO 2017 validation
+images](https://cocodataset.org/) add 5,000 independent distractors, split by
+image identity. The local COCO ZIP SHA-256 is
+`4f7e2ccb2866ec5041993c9cf2a952bbed69647b115d0f74da7ce8f4bef82f05`.
+Full local results are in ignored
+`.artifacts/m4/copydays_coco_report_shadow_v2_reviewed.json`.
+
+| Split | Sources / distractors | Queries | Candidate recall@5 | Verified recall | JPEG 75 recall | Strong recall | Median / p95 verification |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Calibration | 110 / 3,456 | 1,152 | 80.4% | 12.1% | 49.1% | 0% | 121 / 176 ms |
+| Held out | 47 / 1,544 | 490 | 76.3% | 10.6% | 36.2% | 0% | 122 / 193 ms |
+
+The positive queries screened 4,873,076 nonmatching pairs and the 5,000 COCO
+incoming queries screened another 14,736,598 pairs. Neither path verified a
+nonmatching candidate: none fell within the PDQ radius and top-five limit.
+Thus `false_positive=0` is not evidence of verifier precision. The new local
+change check rejects a large altered region, but an exploratory 512x512 scene
+with a changed 20x20 region still passed (PDQ distance 4, SSIM 0.997). For
+scientific imagery this may be a distinct observation, requiring labeled
+domain-specific hard negatives. Because the held-out aggregate was
+inspected between verifier iterations, it now serves as validation evidence,
+not a pristine final test. A fresh source-disjoint final set is required.
+The current release gate
+remains **failed** and fuzzy suppression remains **off**.
+
 ## Compensation path
 
 `RevocationService` is an internal-only path for a future `ACTIVE` derived
@@ -107,23 +140,23 @@ smoke test, **not** a statistically meaningful quality gate.
 
 | Split | Positive queries | Candidate recall | Verified recall | False positives | Median verification |
 |---|---:|---:|---:|---:|---:|
-| Calibration | 12 | 0.75 | 0.50 | 0 | ~40 ms |
-| Held out | 12 | 0.75 | 0.50 | 0 | ~22 ms |
+| Calibration | 12 | 0.75 | 0.58 | 0 | ~34 ms |
+| Held out | 12 | 0.75 | 0.58 | 0 | ~23 ms |
 
-The timings are from one local ARM machine and vary across runs. Precision was
-1.0 on these small sets, but zero observed false positives does not establish
-a production false-positive rate. The configured thresholds miss half of the
-positive transformations. No threshold should be relaxed solely on this set.
+These v2 timings are from one local ARM machine and vary across runs. Precision
+was 1.0 on these small sets, but zero observed false positives does not
+establish a production false-positive rate. No threshold should be relaxed
+solely on this set.
 
 ## Remaining M4 gate
 
-1. Diagnose and improve the JPEG alignment/verification failure on calibration
-   sources only; add failure-reason counts to the reproducible report.
-2. Add the crop attacks and realistic hard negatives, then measure candidate
-   recall@K, verification precision/recall, false positives, and latency by
-   transformation. Preserve source-disjoint held-out evaluation.
-3. Calibrate a versioned strict policy against a stated false-positive gate,
-   then add guarded activation of derived decisions and duplicate groups.
+1. Obtain the official crop attacks, then measure their candidate and verified
+   recall with the v2 policy.
+2. Obtain labeled domain-specific unique-but-similar images; test false
+   suppression and calibrate the strict policy on calibration data only.
+3. Validate the frozen policy against a stated false-positive gate on a fresh
+   source-disjoint final set, then add guarded activation of derived decisions
+   and duplicate groups.
 4. Enable fuzzy suppression only after held-out evidence supports that policy.
 
 The [official Copydays page](https://thoth.inrialpes.fr/~jegou/data.php.html)

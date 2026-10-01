@@ -5,6 +5,7 @@ from io import BytesIO
 import cv2
 import numpy as np
 from PIL import Image
+from skimage import data
 
 from vectorlake.near_copy import NearCopyPolicy, fingerprint, hamming, verify
 
@@ -38,6 +39,39 @@ def test_verifier_accepts_recompressed_copy() -> None:
     pixels = textured()
     result = verify(image_bytes(pixels), image_bytes(pixels, quality=80))
     assert result.accepted, result
+
+
+def test_verifier_compares_at_smaller_image_resolution() -> None:
+    original = Image.fromarray(data.astronaut()).resize(  # type: ignore[no-untyped-call]
+        (1024, 1024), Image.Resampling.LANCZOS
+    )
+    copy = original.resize((256, 256), Image.Resampling.LANCZOS)
+    result = verify(image_bytes(np.asarray(copy), quality=75), image_bytes(np.asarray(original)))
+    assert result.accepted, result
+
+
+def test_verifier_is_order_independent_for_scaled_copy() -> None:
+    original = Image.fromarray(data.coffee()).resize(  # type: ignore[no-untyped-call]
+        (1024, 768), Image.Resampling.LANCZOS
+    )
+    copy = original.resize((512, 384), Image.Resampling.LANCZOS)
+    small = image_bytes(np.asarray(copy), quality=75)
+    large = image_bytes(np.asarray(original))
+    small_first = verify(small, large)
+    large_first = verify(large, small)
+    assert small_first.accepted == large_first.accepted
+    assert abs(small_first.ssim - large_first.ssim) < 0.02
+
+
+def test_verifier_rejects_localized_content_change() -> None:
+    original = Image.fromarray(data.astronaut()).resize(  # type: ignore[no-untyped-call]
+        (1024, 1024), Image.Resampling.LANCZOS
+    )
+    changed = np.asarray(original.resize((256, 256), Image.Resampling.LANCZOS)).copy()
+    changed[80:140, 80:140] = 0
+    result = verify(image_bytes(changed), image_bytes(np.asarray(original)))
+    assert not result.accepted, result
+    assert result.reason == "localized_change"
 
 
 def test_verifier_rejects_unrelated_and_featureless_images() -> None:

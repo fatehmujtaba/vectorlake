@@ -11,7 +11,14 @@ from typing import Any
 
 from PIL import Image
 
-from vectorlake.near_copy import DEFAULT_POLICY, Fingerprint, fingerprint, hamming, verify
+from vectorlake.near_copy import (
+    DEFAULT_POLICY,
+    POLICY_VERSION,
+    Fingerprint,
+    fingerprint,
+    hamming,
+    verify,
+)
 from vectorlake.validation import MAX_DIMENSION, MAX_OBJECT_BYTES, MAX_PIXELS
 
 
@@ -68,12 +75,14 @@ def _bucket() -> dict[str, Any]:
         "false_negative": 0,
         "negative_pairs_screened": 0,
         "negative_candidates_verified": 0,
+        "verification_reasons": {},
         "durations_ms": [],
     }
 
 
 def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
     originals: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    distractors: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     attacks: dict[str, list[dict[str, Any]]] = defaultdict(list)
     source_splits: dict[str, str] = {}
     image_ids: set[str] = set()
@@ -89,9 +98,13 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
         image_ids.add(image_id)
         _validated_path(row)
         if row["expected_relationship"] == "ORIGINAL":
-            if source_id in originals[split]:
+            if source_id in originals[split] or source_id in distractors[split]:
                 raise ValueError(f"multiple originals for source: {source_id}")
             originals[split][source_id] = row
+        elif row["expected_relationship"] == "DISTRACTOR":
+            if source_id in originals[split] or source_id in distractors[split]:
+                raise ValueError(f"multiple originals for source: {source_id}")
+            distractors[split][source_id] = row
         elif row["expected_relationship"] == "DERIVED_COPY":
             attacks[split].append(row)
         else:
@@ -106,13 +119,15 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 raise ValueError(f"no original for attack: {row['image_id']}")
 
     report: dict[str, Any] = {
+        "policy_version": POLICY_VERSION,
         "policy": DEFAULT_POLICY.__dict__,
-        "sources": len(source_splits),
+        "sources": sum(len(group) for group in originals.values()),
+        "distractors": sum(len(group) for group in distractors.values()),
         "suppression_approved": False,
         "splits": {},
     }
     for split in ("calibration", "held_out"):
-        base = originals[split]
+        base = originals[split] | distractors[split]
         base_hashes = {
             source_id: _fingerprint(Path(row["path"])) for source_id, row in base.items()
         }
@@ -154,6 +169,8 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 duration = (time.perf_counter() - start) * 1000
                 for bucket in metrics:
                     bucket["durations_ms"].append(duration)
+                    reasons = bucket["verification_reasons"]
+                    reasons[result.reason] = reasons.get(result.reason, 0) + 1
                     if other_id != source_id:
                         bucket["negative_candidates_verified"] += 1
                     if result.accepted:
@@ -163,9 +180,58 @@ def evaluate_manifest(rows: list[dict[str, Any]]) -> dict[str, Any]:
             if not accepted_self:
                 for bucket in metrics:
                     bucket["false_negative"] += 1
+        negative_queries: dict[str, Any] = {
+            "queries": len(distractors[split]),
+            "pairs_screened": 0,
+            "candidates": 0,
+            "verified_candidates": 0,
+            "accepted_unlabeled_pairs": 0,
+            "verification_reasons": {},
+            "accepted_examples": [],
+        }
+        for source_id, row in distractors[split].items():
+            query_hash = base_hashes[source_id]
+            distances = sorted(
+                (
+                    (other_id, hamming(query_hash.hex_value, value.hex_value))
+                    for other_id, value in base_hashes.items()
+                    if other_id != source_id
+                    and query_hash.quality >= DEFAULT_POLICY.min_pdq_quality
+                    and value.quality >= DEFAULT_POLICY.min_pdq_quality
+                ),
+                key=lambda pair: (pair[1], pair[0]),
+            )
+            negative_queries["pairs_screened"] += len(distances)
+            negative_candidates = [
+                (other_id, distance)
+                for other_id, distance in distances[:5]
+                if distance <= DEFAULT_POLICY.max_pdq_distance
+            ]
+            negative_queries["candidates"] += len(negative_candidates)
+            for other_id, distance in negative_candidates:
+                with (
+                    Path(row["path"]).open("rb") as query,
+                    Path(base[other_id]["path"]).open("rb") as candidate,
+                ):
+                    result = verify(query, candidate)
+                negative_queries["verified_candidates"] += 1
+                reasons = negative_queries["verification_reasons"]
+                reasons[result.reason] = reasons.get(result.reason, 0) + 1
+                if result.accepted:
+                    negative_queries["accepted_unlabeled_pairs"] += 1
+                    if len(negative_queries["accepted_examples"]) < 20:
+                        negative_queries["accepted_examples"].append(
+                            {
+                                "query_image_id": row["image_id"],
+                                "candidate_image_id": base[other_id]["image_id"],
+                                "pdq_distance": distance,
+                            }
+                        )
         report["splits"][split] = {
-            "source_count": len(base),
+            "source_count": len(originals[split]),
+            "distractor_count": len(distractors[split]),
             "overall": _summary(totals),
+            "negative_queries": negative_queries,
             "by_transformation": {
                 name: _summary(bucket) for name, bucket in sorted(by_transform.items())
             },

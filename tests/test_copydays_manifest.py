@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
+import sys
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from infrastructure.copydays_manifest import build_manifest
+from infrastructure.copydays_manifest import build_manifest, main
 
 
 def photo(path: Path) -> None:
@@ -44,3 +46,48 @@ def test_duplicate_original_source_is_rejected(tmp_path: Path) -> None:
     photo(originals / "200001.jpg")
     with pytest.raises(ValueError, match="multiple originals"):
         build_manifest(originals, [])
+
+
+def test_distractors_have_independent_source_ids_and_splits(tmp_path: Path) -> None:
+    originals = tmp_path / "original"
+    attacks = tmp_path / "jpeg"
+    distractors = tmp_path / "coco"
+    for source in (200000, 200100):
+        photo(originals / f"{source}.jpg")
+        photo(attacks / f"{source + 1}.jpg")
+    photo(distractors / "nested" / "scene.jpg")
+    rows = build_manifest(originals, [attacks], distractor_dir=distractors)
+    distractor = next(row for row in rows if row["expected_relationship"] == "DISTRACTOR")
+    assert distractor["source_id"] == "distractor/nested/scene.jpg"
+    assert distractor["image_id"] == distractor["source_id"]
+    assert distractor["split"] in {"calibration", "held_out"}
+    assert len(rows) == 5
+
+
+def test_cli_reports_copydays_sources_separately_from_distractors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    originals = tmp_path / "original"
+    attacks = tmp_path / "jpeg"
+    distractors = tmp_path / "coco"
+    for source in (200000, 200100):
+        photo(originals / f"{source}.jpg")
+        photo(attacks / f"{source + 1}.jpg")
+    photo(distractors / "scene.jpg")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "copydays_manifest",
+            "--original-dir",
+            str(originals),
+            "--attack-dir",
+            str(attacks),
+            "--distractor-dir",
+            str(distractors),
+            "--output",
+            str(tmp_path / "manifest.jsonl"),
+        ],
+    )
+    main()
+    assert json.loads(capsys.readouterr().out) == {"rows": 5, "sources": 2, "distractors": 1}
