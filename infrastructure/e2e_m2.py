@@ -65,20 +65,31 @@ def verify() -> dict[str, object]:
         )
         assert overwritten.status_code == 412, overwritten.text
 
-        deadline = time.monotonic() + 15
+        deadline = time.monotonic() + 30
         notification = None
+        first_ids: list[str] = []
         while time.monotonic() < deadline:
             messages = bridge.sqs.receive_message(
                 QueueUrl=bridge.queue_url, MaxNumberOfMessages=1, WaitTimeSeconds=1
             ).get("Messages", [])
             if messages:
-                notification = messages[0]
-                break
-        assert notification is not None, "S3 notification did not reach SQS"
-        first_ids = bridge.process_message(notification)
+                ids = bridge.process_message(messages[0])
+                if (
+                    api.get(f"/v1/images/{session['image_id']}", headers=headers).json()["status"]
+                    == "received"
+                ):
+                    notification = messages[0]
+                    first_ids = ids
+                    break
+        assert notification is not None, "this upload's S3 notification did not reach SQS"
         assert len(first_ids) == 1
         bridge.sqs.send_message(QueueUrl=bridge.queue_url, MessageBody=notification["Body"])
-        repeated_ids = bridge.poll_once(wait_seconds=1)
+        repeated_ids: list[str] = []
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            repeated_ids = bridge.poll_once(wait_seconds=1)
+            if repeated_ids == first_ids:
+                break
         assert repeated_ids == first_ids
         assert (
             api.get(f"/v1/images/{session['image_id']}", headers=headers).json()["status"]

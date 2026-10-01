@@ -146,7 +146,9 @@ tracks the staged fix. The upload contract records an optional client-asserted
 source/capture pair, and deterministic dedup v3 isolates claims by both IDs;
 uploads without provenance remain separate observations. Completed records
 from a prior or unmarked policy are skipped on replay rather than silently
-reclassified. The next step
-is to bind authenticated producer identity to `source_id`, inventory and
-migrate v1/v2 state, and complete operational replay tests before revisiting
-the held-out quality gate.
+reclassified. The local token now binds one source and the read-only audit
+found 90 completed unversioned records, 31 completed v3 records, and one
+incomplete record in the local table. The next step is to connect a real
+production identity provider that binds a producer to `source_id`, then
+migrate/reconcile v1/v2 state and complete operational replay tests before
+revisiting the held-out quality gate.

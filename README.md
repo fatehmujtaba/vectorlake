@@ -65,7 +65,9 @@ auth stub accepts `Authorization: Bearer vectorlake-local-dev-token` and binds
 the caller to the seeded `local-dev` tenant and scope. Set
 `VECTORLAKE_LOCAL_API_TOKEN` to override that development-only token. In
 non-local environments, uploads fail closed until a real identity provider is
-configured. Send an `Idempotency-Key` header with the session request:
+configured. Captured uploads must use the source bound to that token
+(`VECTORLAKE_LOCAL_API_SOURCE_ID`, default `camera-1`); another source returns
+403. Send an `Idempotency-Key` header with the session request:
 
 ```sh
 curl -sS -X POST http://127.0.0.1:8000/v1/upload-sessions \
@@ -89,6 +91,10 @@ The pinned Floci image accepts the signed local PUT but its optional signature
 validator rejected even a minimal boto3 SigV4 URL in testing. Local expiration
 and signature-tamper enforcement are therefore unverified; validate both
 against the deployment S3 service before release.
+Run `make audit-dedup` against the local emulator to inventory completed
+records by deterministic policy version. The command is read-only, paginated,
+and reports whether its scan covered the whole table. It does not migrate
+records.
 The API does not receive image bytes. Run `make bridge` in another terminal
 to forward S3-created notifications from SQS to Kafka; the bridge deletes an
 SQS message only after the Kafka delivery callback succeeds and state is

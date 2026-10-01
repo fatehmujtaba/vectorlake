@@ -21,3 +21,4 @@ class LocalInfrastructureSettings(BaseSettings):
     postgres_instance_id: str = "vectorlake-control"
     kafka_bootstrap_servers: str = "127.0.0.1:19092"
     api_token: str = "vectorlake-local-dev-token"
+    api_source_id: str = "camera-1"

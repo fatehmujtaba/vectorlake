@@ -62,6 +62,8 @@ def create_app(upload_service: UploadService | None = None) -> FastAPI:
         traceparent: Annotated[str | None, Header()] = None,
     ) -> dict[str, object]:
         tenant_id = tenant(authorization)
+        if request.source_id is not None and request.source_id != local.api_source_id:
+            raise HTTPException(status_code=403, detail="source is not authorized")
         try:
             session = uploads().create_session(
                 tenant_id,
