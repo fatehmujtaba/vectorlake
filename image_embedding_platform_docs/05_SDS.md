@@ -279,6 +279,7 @@ Fields:
 image_id
 tenant_id
 dedup_scope_id
+capture_id (optional client-asserted source observation)
 bucket
 object_key
 object_version
@@ -306,7 +307,7 @@ last_error_code
 ### `exact_hash_registry`
 
 ```text
-PK = SCOPE#{scope_id}#SHA256#{digest}
+PK = {observation_namespace}#SHA256#{digest}
 owner_image_id
 duplicate_group_id
 created_at
@@ -317,11 +318,17 @@ Use conditional `attribute_not_exists(PK)` style ownership.
 ### `pixel_hash_registry`
 
 ```text
-PK = SCOPE#{scope_id}#PIXEL#{canonicalization_version}#{digest}
+PK = {observation_namespace}#PIXEL#{canonicalization_version}#{digest}
 owner_image_id
 duplicate_group_id
 created_at
 ```
+
+In deterministic policy v2, `observation_namespace` is
+`SCOPE#{scope_id}#CAPTURE#{sha256(capture_id)}` when a capture ID is supplied,
+otherwise `SCOPE#{scope_id}#IMAGE#{image_id}`. The latter deliberately avoids
+collapsing observations with missing provenance. See the
+[capture identity plan](14_CAPTURE_IDENTITY_PLAN.md) for rollout prerequisites.
 
 ### `duplicate_groups`
 

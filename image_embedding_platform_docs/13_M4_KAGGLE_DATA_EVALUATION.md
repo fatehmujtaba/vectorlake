@@ -126,10 +126,12 @@ The same observation rule also exposes an architecture question outside this
 shadow path: byte and canonical-pixel identity are currently scoped by tenant
 dedup scope, not by capture identity. Two separately captured observations
 with identical bytes or pixels could be coalesced before near-copy search.
-Before calling the whole pipeline observation-preserving, the upload contract
-needs a trustworthy capture/observation identity and the exact/pixel
-deduplication policy must be reviewed against it. The staged implementation
-is tracked in [the capture identity plan](14_CAPTURE_IDENTITY_PLAN.md).
+The deterministic worker now isolates exact/pixel claims by asserted capture
+ID, and treats missing IDs as separate observations. Trustworthy producer
+identity, collision prevention, and a v1 replay/migration plan are still
+required before claiming an operationally observation-preserving pipeline.
+The staged implementation is tracked in
+[the capture identity plan](14_CAPTURE_IDENTITY_PLAN.md).
 
 ## Remaining gate
 

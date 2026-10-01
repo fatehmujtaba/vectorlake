@@ -29,9 +29,14 @@ def png(mode: str, *, comment: str = "", pixels: bytes | None = None) -> bytes:
 
 
 def received_event(
-    service: UploadService, data: bytes, tenant_id: str = "local-dev"
+    service: UploadService,
+    data: bytes,
+    tenant_id: str = "local-dev",
+    capture_id: str | None = None,
 ) -> events_pb2.ImageReceivedV1:
-    session = service.create_session(tenant_id, uuid4().hex, "image/png", len(data))
+    session = service.create_session(
+        tenant_id, uuid4().hex, "image/png", len(data), capture_id=capture_id
+    )
     response = httpx.put(
         session.upload_url, content=data, headers=session.upload_headers, timeout=10
     )
@@ -68,14 +73,15 @@ def verify() -> dict[str, object]:
 
     original_pixels = uuid4().bytes * 3
     original_bytes = png("RGB", comment="original", pixels=original_pixels)
-    original = received_event(service, original_bytes)
+    capture_id = uuid4().hex
+    original = received_event(service, original_bytes, capture_id=capture_id)
     original_outcome = processor.process(original)
     assert original_outcome.dedup_status == "unique"
     replay_outcome = processor.process(original)
     assert replay_outcome.dedup_status == "unique"
     assert replay_outcome.message.context.event_id == original_outcome.message.context.event_id  # type: ignore[attr-defined]
 
-    exact = received_event(service, original_bytes)
+    exact = received_event(service, original_bytes, capture_id=capture_id)
     with patch(
         "vectorlake.processor.canonicalize_image", side_effect=AssertionError("decoded exact copy")
     ):
@@ -84,11 +90,21 @@ def verify() -> dict[str, object]:
     assert exact_outcome.owner_image_id == original.context.image_id
 
     metadata = received_event(
-        service, png("RGB", comment="metadata changed", pixels=original_pixels)
+        service,
+        png("RGB", comment="metadata changed", pixels=original_pixels),
+        capture_id=capture_id,
     )
     pixel_outcome = processor.process(metadata)
     assert pixel_outcome.dedup_status == "duplicate_pixel"
     assert pixel_outcome.owner_image_id == original.context.image_id
+
+    distinct = received_event(service, original_bytes, capture_id=uuid4().hex)
+    distinct_outcome = processor.process(distinct)
+    assert distinct_outcome.dedup_status == "unique"
+    assert distinct_outcome.duplicate_group_id != original_outcome.duplicate_group_id
+    legacy = received_event(service, original_bytes)
+    legacy_outcome = processor.process(legacy)
+    assert legacy_outcome.dedup_status == "unique"
 
     malformed = received_event(service, b"\x89PNG\r\n\x1a\nnot a PNG")
     invalid_outcome = processor.process(malformed)
@@ -109,7 +125,10 @@ def verify() -> dict[str, object]:
     assert gray16_outcome.dedup_status == "unique"
 
     concurrent_bytes = png("RGB", pixels=uuid4().bytes * 3)
-    concurrent_events = [received_event(service, concurrent_bytes) for _ in range(2)]
+    concurrent_capture = uuid4().hex
+    concurrent_events = [
+        received_event(service, concurrent_bytes, capture_id=concurrent_capture) for _ in range(2)
+    ]
     with ThreadPoolExecutor(max_workers=2) as executor:
         outcomes = list(
             executor.map(lambda event: ImageProcessor(settings).process(event), concurrent_events)
@@ -117,8 +136,13 @@ def verify() -> dict[str, object]:
     assert sorted(outcome.dedup_status for outcome in outcomes) == ["duplicate_exact", "unique"]
 
     pixel_race_pixels = uuid4().bytes * 3
+    pixel_capture = uuid4().hex
     pixel_race_events = [
-        received_event(service, png("RGB", comment=comment, pixels=pixel_race_pixels))
+        received_event(
+            service,
+            png("RGB", comment=comment, pixels=pixel_race_pixels),
+            capture_id=pixel_capture,
+        )
         for comment in ("pixel race A", "pixel race B")
     ]
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -143,7 +167,7 @@ def verify() -> dict[str, object]:
             "INSERT INTO vectorlake.dedup_scopes (scope_id, tenant_id, name) VALUES (%s, %s, %s)",
             (tenant_id, tenant_id, "M3 isolation test"),
         )
-    other_scope = received_event(service, original_bytes, tenant_id)
+    other_scope = received_event(service, original_bytes, tenant_id, capture_id=capture_id)
     other_outcome = processor.process(other_scope)
     assert other_outcome.dedup_status == "unique"
 
@@ -153,6 +177,8 @@ def verify() -> dict[str, object]:
         "original": original_outcome.dedup_status,
         "exact": exact_outcome.dedup_status,
         "pixel": pixel_outcome.dedup_status,
+        "distinct_capture": distinct_outcome.dedup_status,
+        "legacy_observation": legacy_outcome.dedup_status,
         "malformed": invalid_outcome.message.error_code,
         "bit_depth": [gray8_outcome.dedup_status, gray16_outcome.dedup_status],
         "concurrent": sorted(outcome.dedup_status for outcome in outcomes),

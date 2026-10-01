@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -33,6 +34,13 @@ PIXEL_TABLE = "pixel_hash_registry"
 MODEL_ROUTE = "resnet18-v1"
 EVIDENCE_TABLE = "near_copy_evidence"
 logger = logging.getLogger(__name__)
+
+
+def observation_namespace(scope_id: str, image_id: str, capture_id: str | None) -> str:
+    if capture_id:
+        capture_digest = hashlib.sha256(capture_id.encode()).hexdigest()
+        return f"SCOPE#{scope_id}#CAPTURE#{capture_digest}"
+    return f"SCOPE#{scope_id}#IMAGE#{image_id}"
 
 
 class RetryableProcessingError(Exception):
@@ -119,7 +127,7 @@ class ImageProcessor:
             duplicate_group_id=group_id,
             representative_image_id=owner_image_id,
             duplicate_class=duplicate_class,
-            policy_version=f"{kind}-v1",
+            policy_version=f"{kind}-v2",
             decision_record_id=str(
                 uuid5(NAMESPACE_URL, f"decision/{event.context.image_id}/{kind}/{owner_image_id}")
             ),
@@ -326,7 +334,10 @@ class ImageProcessor:
                     return self._failed(event, exc.code)
 
                 scope = event.context.dedup_scope_id
-                exact_key = f"SCOPE#{scope}#SHA256#{streamed.byte_sha256}"
+                namespace = observation_namespace(
+                    scope, event.context.image_id, state.get("capture_id", {}).get("S")
+                )
+                exact_key = f"{namespace}#SHA256#{streamed.byte_sha256}"
                 existing = self.ddb.get_item(
                     TableName=EXACT_TABLE,
                     Key={"PK": {"S": exact_key}},
@@ -352,7 +363,7 @@ class ImageProcessor:
                     canonical.height,
                     canonical.sample_mode,
                 )
-                group_id = str(uuid5(NAMESPACE_URL, f"group/{scope}/{canonical.pixel_sha256}"))
+                group_id = str(uuid5(NAMESPACE_URL, f"group/{namespace}/{canonical.pixel_sha256}"))
                 exact_owner, exact_group = self._claim(
                     EXACT_TABLE, exact_key, event.context.image_id, group_id
                 )
@@ -361,9 +372,7 @@ class ImageProcessor:
                         raise RetryableProcessingError("exact owner validation pending")
                     return self._duplicate(event, "exact", exact_owner, exact_group)
 
-                pixel_key = (
-                    f"SCOPE#{scope}#PIXEL#{CANONICALIZATION_VERSION}#{canonical.pixel_sha256}"
-                )
+                pixel_key = f"{namespace}#PIXEL#{CANONICALIZATION_VERSION}#{canonical.pixel_sha256}"
                 pixel_owner, pixel_group = self._claim(
                     PIXEL_TABLE, pixel_key, event.context.image_id, group_id
                 )

@@ -80,8 +80,10 @@ PUT. The URL expires after 15 minutes; replaying the same idempotency key
 returns the same image and a fresh URL. A conflicting replay returns 409.
 The body may include a `capture_id` such as `camera-1:frame-2`; it is a
 client-asserted source-observation key, returned in image status and included
-in idempotency. It does not yet change dedup decisions. Different captures
-must use different IDs, while derived copies may refer to the source capture.
+in idempotency. Exact/pixel suppression applies only within the same capture
+ID. Different captures must use different IDs; uploads without one remain
+separate observations even when their content matches. Derived copies may
+refer to the source capture.
 `If-None-Match: *` prevents normal overwrites, and the bucket is versioned.
 The pinned Floci image accepts the signed local PUT but its optional signature
 validator rejected even a minimal boto3 SigV4 URL in testing. Local expiration

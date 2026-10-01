@@ -61,9 +61,10 @@ handling of untrusted images.
 - Deliver bounded object streaming, SHA-256, signature and decoder checks,
   versioned canonical-pixel identity, conditional ownership claims, and
   permanent versus retryable failure classification.
-- Exit: concurrent identical uploads converge on one exact owner; metadata-only
-  variants converge on one pixel owner; meaningful bit-depth differences stay
-  distinct; malformed images do not crash or endlessly retry a worker.
+- Exit: concurrent identical uploads of one capture converge on one exact
+  owner; metadata-only variants of that capture converge on one pixel owner;
+  separate captures and meaningful bit-depth differences stay distinct;
+  malformed images do not crash or endlessly retry a worker.
 - Next: build and evaluate the near-copy candidate and verification path in M4.
 
 ### M4: Evaluated near-copy deduplication
@@ -141,8 +142,9 @@ the chronological shadow sample accepted earlier-frame matches for 38/48
 queries. Near-copy activation is therefore blocked, and exact/pixel dedup
 also needs a capture-identity review before claiming observation preservation.
 The [capture identity plan](image_embedding_platform_docs/14_CAPTURE_IDENTITY_PLAN.md)
-tracks the staged fix. Its first contract slice records an optional client-
-asserted `capture_id`; that field does not yet alter dedup decisions. The next
-implementation step is to define authenticated capture provenance and separate
-content reuse from observation suppression, with same-content/different-capture
-tests, before revisiting the held-out quality gate.
+tracks the staged fix. The upload contract records an optional client-asserted
+`capture_id`, and deterministic dedup v2 isolates claims by capture; legacy
+uploads without provenance remain separate observations. The next step is to
+define authenticated producer provenance and a v1-state migration/replay plan,
+then add source-collision and operational tests before revisiting the held-out
+quality gate.
