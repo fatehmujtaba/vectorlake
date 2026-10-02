@@ -214,29 +214,38 @@ def _expected_topic(status: str) -> str | None:
 
 
 def _matches(state: dict[str, Any], event: OutcomeEvent) -> bool:
-    if event.tenant_id != _value(state, "tenant_id") or event.scope_id != _value(
-        state, "dedup_scope_id"
-    ):
-        return False
+    return not _mismatched_fields(state, event)
+
+
+def _mismatched_fields(state: dict[str, Any], event: OutcomeEvent) -> list[str]:
+    fields: dict[str, tuple[object, object]] = {
+        "tenant_id": (event.tenant_id, _value(state, "tenant_id")),
+        "dedup_scope_id": (event.scope_id, _value(state, "dedup_scope_id")),
+    }
     status = _value(state, "dedup_status")
     if event.topic == "image.inference-ready.v1":
-        return (
-            event.group_id == _value(state, "duplicate_group_id")
-            and event.bucket == _value(state, "bucket")
-            and event.object_key == _value(state, "object_key")
+        fields.update(
+            duplicate_group_id=(event.group_id, _value(state, "duplicate_group_id")),
+            bucket=(event.bucket, _value(state, "bucket")),
+            object_key=(event.object_key, _value(state, "object_key")),
         )
-    if event.topic == "image.duplicate.v1":
+    elif event.topic == "image.duplicate.v1":
         classes = {
             "duplicate_exact": events_pb2.ImageDuplicateV1.EXACT,
             "duplicate_pixel": events_pb2.ImageDuplicateV1.PIXEL,
             "duplicate_derived": events_pb2.ImageDuplicateV1.DERIVED,
         }
-        return (
-            event.group_id == _value(state, "duplicate_group_id")
-            and event.owner_id == _value(state, "representative_image_id")
-            and event.duplicate_class == classes.get(status)
+        fields.update(
+            duplicate_group_id=(event.group_id, _value(state, "duplicate_group_id")),
+            representative_image_id=(event.owner_id, _value(state, "representative_image_id")),
+            duplicate_class=(event.duplicate_class, classes.get(status)),
         )
-    return event.stage == "validation" and _value(state, "validation_status") == "invalid"
+    else:
+        fields.update(
+            stage=(event.stage, "validation"),
+            validation_status=(_value(state, "validation_status"), "invalid"),
+        )
+    return [name for name, (actual, expected) in fields.items() if actual != expected]
 
 
 def compare(
@@ -244,6 +253,7 @@ def compare(
 ) -> dict[str, Any]:
     counts: Counter[str] = Counter()
     by_policy: dict[str, Counter[str]] = defaultdict(Counter)
+    mismatches: Counter[str] = Counter()
     samples: dict[str, list[str]] = defaultdict(list)
     for image_id, state in states.items():
         expected_topic = _expected_topic(_value(state, "dedup_status"))
@@ -255,6 +265,8 @@ def compare(
         else:
             expected = [event for event in observed if event.topic == expected_topic]
             matching = [event for event in expected if _matches(state, event)]
+            for event in expected:
+                mismatches.update(_mismatched_fields(state, event))
             other = [event for event in observed if event.topic != expected_topic]
             if not expected:
                 result = "different_outcome"
@@ -283,7 +295,57 @@ def compare(
             policy: dict(sorted(results.items())) for policy, results in sorted(by_policy.items())
         },
         "sample_image_ids": dict(sorted(samples.items())),
+        "expected_event_mismatch_fields": dict(sorted(mismatches.items())),
         "events_without_completed_state": len(set(events) - set(states)),
+    }
+
+
+def inspect_image(
+    image_id: str, states: dict[str, dict[str, Any]], events: dict[str, list[OutcomeEvent]]
+) -> dict[str, Any]:
+    state = states.get(image_id)
+    observed = events.get(image_id, [])
+    if state is None and not observed:
+        return {"image_id": image_id, "found": False}
+    expected_topic = _expected_topic(_value(state, "dedup_status")) if state else None
+    return {
+        "image_id": image_id,
+        "found": True,
+        "state": None
+        if state is None
+        else {
+            field: _value(state, field)
+            for field in (
+                "tenant_id",
+                "dedup_scope_id",
+                "dedup_status",
+                "validation_status",
+                "deterministic_policy_version",
+                "duplicate_group_id",
+                "representative_image_id",
+                "bucket",
+                "object_key",
+                "revoked_decision_id",
+            )
+        },
+        "events": [
+            {
+                "topic": event.topic,
+                "event_id": event.event_id,
+                "tenant_id": event.tenant_id,
+                "dedup_scope_id": event.scope_id,
+                "duplicate_group_id": event.group_id,
+                "representative_image_id": event.owner_id,
+                "duplicate_class": event.duplicate_class,
+                "bucket": event.bucket,
+                "object_key": event.object_key,
+                "stage": event.stage,
+                "mismatched_fields": _mismatched_fields(state, event)
+                if state is not None and event.topic == expected_topic
+                else ["topic"],
+            }
+            for event in observed
+        ],
     }
 
 
@@ -293,6 +355,9 @@ def main() -> None:
     parser.add_argument("--page-size", type=int, default=100)
     parser.add_argument("--max-messages", type=int, default=100_000)
     parser.add_argument("--max-seconds", type=int, default=60)
+    parser.add_argument(
+        "--image-id", help="include full local state/event comparison for one image"
+    )
     args = parser.parse_args()
     settings = LocalInfrastructureSettings()
     hosts = [
@@ -332,6 +397,8 @@ def main() -> None:
         and not event_scan["retention_gap_partitions"]
         and not event_scan["malformed_messages"]
     )
+    if args.image_id:
+        report["inspection"] = inspect_image(args.image_id, states, events)
     print(json.dumps(report, indent=2, sort_keys=True))
 
 

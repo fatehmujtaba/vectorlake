@@ -156,4 +156,7 @@ one, then review the
 [read-only outcome reconciliation](image_embedding_platform_docs/16_OUTCOME_RECONCILIATION.md)
 and downstream mappings before revisiting the held-out quality gate. The local
 reconciliation exposed historic mixed-policy outcome variants; the outdated
-local worker was stopped, and completed-image replay now skips republishing.
+local worker was rebuilt, and completed-image replay now skips republishing.
+Field-level triage found all 34 expected-topic mismatches in duplicate group
+IDs; 10 images also have both duplicate and inference outcomes. Historical
+rows and downstream consumers still need an explicit review before repair.

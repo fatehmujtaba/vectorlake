@@ -3,7 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from infrastructure.reconcile_outcomes import OutcomeEvent, compare, load_states, read_events
+from infrastructure.reconcile_outcomes import (
+    OutcomeEvent,
+    compare,
+    inspect_image,
+    load_states,
+    read_events,
+)
 from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import serialize_event
 from vectorlake.processor import DETERMINISTIC_POLICY_VERSION
@@ -66,6 +72,23 @@ def test_compare_matches_outcomes_and_flags_payload_mismatch() -> None:
     mismatch = compare({"image-1": unique}, {"image-1": [ready(group="other-group")]})
     assert mismatch["result_counts"] == {"payload_mismatch": 1}
     assert mismatch["sample_image_ids"] == {"payload_mismatch": ["image-1"]}
+    assert mismatch["expected_event_mismatch_fields"] == {"duplicate_group_id": 1}
+
+
+def test_inspect_image_shows_event_variants_and_field_differences() -> None:
+    image_state = state("unique")
+    report = inspect_image(
+        "image-1",
+        {"image-1": image_state},
+        {"image-1": [ready(), ready(group="old-group"), duplicate()]},
+    )
+    assert report["found"] is True
+    assert [event["mismatched_fields"] for event in report["events"]] == [
+        [],
+        ["duplicate_group_id"],
+        ["topic"],
+    ]
+    assert inspect_image("absent", {}, {}) == {"image_id": "absent", "found": False}
 
 
 def test_compare_handles_compensated_and_missing_outcomes() -> None:

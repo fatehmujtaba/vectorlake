@@ -13,6 +13,14 @@ different payloads under the same event ID remain visible as conflicting
 variants. A revoked derived decision may legitimately have an old duplicate
 and a compensating inference event.
 
+The report includes `expected_event_mismatch_fields` to count field-level
+differences in retained events with the expected topic. To inspect one image
+without modifying state or committing offsets, run
+`uv run --locked python -m infrastructure.reconcile_outcomes --image-id IMAGE_ID`.
+The optional `inspection` shows the completed row and each retained outcome
+variant, including event IDs and mismatched fields. It is subject to the same
+scan bounds and coverage caveats as the aggregate report.
+
 `coverage_complete` means both paginated scans reached their bounds, no topic
 was missing, and retained Kafka history began at offset zero. It is **not** an
 atomic snapshot across DynamoDB and Kafka. If it is false, missing-event
@@ -29,7 +37,10 @@ it was stopped, rebuilt with the completed-image replay guard, and restarted
 without deleting data. Fresh M3 drills and the rebuilt worker's valid/malformed
 image verification raised the matched count while the historical conflict
 counts stayed unchanged. The scan observed 106 conflicting same-event-ID
-payloads across retained messages. This is development-state evidence, not a
+payloads across retained messages. All 34 expected-topic mismatches were in
+`duplicate_group_id`; an inspected image had two inference events with the
+same event ID but different groups. Another had both a duplicate and an
+inference outcome. This is development-state evidence, not a
 production incident or a completed migration. Do not auto-repair or replay
 these rows. Review each conflict against its published event, policy, and
 downstream consumers before any explicit backfill with rollback.

@@ -99,7 +99,9 @@ records or verify published events. See the
 before configuring production uploads.
 Run `make reconcile-outcomes` to compare completed local image state with
 retained Kafka outcome events. It is read-only and flags conflicting event
-variants without changing historical state.
+variants without changing historical state. Add `--image-id IMAGE_ID` to the
+underlying `uv run --locked python -m infrastructure.reconcile_outcomes`
+command for one-image triage.
 The API does not receive image bytes. Run `make bridge` in another terminal
 to forward S3-created notifications from SQS to Kafka; the bridge deletes an
 SQS message only after the Kafka delivery callback succeeds and state is
