@@ -23,10 +23,10 @@ avoiding lost observations over saved inference cost; explicit same-source,
 same-capture copies still converge. Near-copy suppression remains disabled.
 
 New completed records carry `deterministic_policy_version`. On replay, the
-worker skips a completed record with a missing or different marker: its
-outcome was published before `dedup_status` was written, and re-evaluating it
-under v3 could change the group or event type. Incomplete prior-policy records
-can still be processed.
+worker skips **any** completed record: its outcome was published before
+`dedup_status` was written, and re-evaluating it could change the group or
+event payload even under the same policy. Incomplete records can still be
+processed.
 This is a **replay guard**, not a full migration of old state or registries.
 
 ## Delivery steps
@@ -37,7 +37,7 @@ This is a **replay guard**, not a full migration of old state or registries.
 2. **Observation-preserving identity (in progress).** The worker separates
    distinct sources, captures, and missing-provenance uploads; focused tests
    cover exact/pixel keys and the M3 drill covers concurrent same-capture
-   claims. Completed prior-policy replays are skipped. Before rollout,
+   claims. All completed replays are skipped. Before rollout,
    authenticate/bind the producer to its source, guarantee stable capture
    keys, and inventory/migrate persisted v1/v2 state and registries. Then
    separate content reuse from observation identity in M5 so distinct

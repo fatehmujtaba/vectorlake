@@ -55,7 +55,7 @@ class RetryableProcessingError(Exception):
     pass
 
 
-class AlreadyProcessedPriorPolicy(Exception):
+class AlreadyProcessedOutcome(Exception):
     pass
 
 
@@ -451,9 +451,8 @@ class ImageProcessor:
 
     def process(self, event: events_pb2.ImageReceivedV1) -> ProcessingOutcome:
         state = self._state(event)
-        recorded_policy = state.get("deterministic_policy_version", {}).get("S")
-        if "dedup_status" in state and recorded_policy != DETERMINISTIC_POLICY_VERSION:
-            raise AlreadyProcessedPriorPolicy(event.context.image_id)
+        if "dedup_status" in state:
+            raise AlreadyProcessedOutcome(event.context.image_id)
         outcome = self.evaluate(event)
         self._publish(outcome, event.context.image_id)
         self._record_outcome(event, outcome)

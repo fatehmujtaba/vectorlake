@@ -7,7 +7,7 @@ import pytest
 from vectorlake.events.v1 import events_pb2
 from vectorlake.near_copy import Fingerprint
 from vectorlake.processor import (
-    AlreadyProcessedPriorPolicy,
+    AlreadyProcessedOutcome,
     ImageProcessor,
     ProcessingOutcome,
     RetryableProcessingError,
@@ -111,8 +111,8 @@ def test_index_only_after_event_and_state_are_recorded() -> None:
     processor.index.add.assert_called_once_with("scope-1", "image-1", Fingerprint("0" * 64, 90))
 
 
-@pytest.mark.parametrize("recorded_policy", [None, "capture-v2"])
-def test_completed_prior_policy_image_is_not_republished(recorded_policy: str | None) -> None:
+@pytest.mark.parametrize("recorded_policy", [None, "capture-v2", "capture-source-v3"])
+def test_completed_image_is_not_republished(recorded_policy: str | None) -> None:
     processor = object.__new__(ImageProcessor)
     state = {"dedup_status": {"S": "unique"}}
     if recorded_policy is not None:
@@ -122,7 +122,7 @@ def test_completed_prior_policy_image_is_not_republished(recorded_policy: str | 
         patch.object(ImageProcessor, "evaluate") as evaluate,
         patch.object(ImageProcessor, "_publish") as publish,
     ):
-        with pytest.raises(AlreadyProcessedPriorPolicy, match="image-1"):
+        with pytest.raises(AlreadyProcessedOutcome, match="image-1"):
             processor.process(received())
     evaluate.assert_not_called()
     publish.assert_not_called()

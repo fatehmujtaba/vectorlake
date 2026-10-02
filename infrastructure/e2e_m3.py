@@ -15,7 +15,7 @@ from infrastructure.bootstrap import bootstrap
 from vectorlake.common.local import LocalInfrastructureSettings
 from vectorlake.events.v1 import events_pb2
 from vectorlake.ingestion import UploadService
-from vectorlake.processor import ImageProcessor
+from vectorlake.processor import AlreadyProcessedOutcome, ImageProcessor
 
 
 def png(mode: str, *, comment: str = "", pixels: bytes | None = None) -> bytes:
@@ -80,9 +80,12 @@ def verify() -> dict[str, object]:
     original = received_event(service, original_bytes, capture_id=capture_id)
     original_outcome = processor.process(original)
     assert original_outcome.dedup_status == "unique"
-    replay_outcome = processor.process(original)
-    assert replay_outcome.dedup_status == "unique"
-    assert replay_outcome.message.context.event_id == original_outcome.message.context.event_id  # type: ignore[attr-defined]
+    try:
+        processor.process(original)
+    except AlreadyProcessedOutcome:
+        pass
+    else:
+        raise AssertionError("completed image replay was not skipped")
 
     exact = received_event(service, original_bytes, capture_id=capture_id)
     with patch(

@@ -144,13 +144,16 @@ also needs a capture-identity review before claiming observation preservation.
 The [capture identity plan](image_embedding_platform_docs/14_CAPTURE_IDENTITY_PLAN.md)
 tracks the staged fix. The upload contract records an optional client-asserted
 source/capture pair, and deterministic dedup v3 isolates claims by both IDs;
-uploads without provenance remain separate observations. Completed records
-from a prior or unmarked policy are skipped on replay rather than silently
-reclassified. The local token now binds one source and the read-only audit
+uploads without provenance remain separate observations. All completed records
+are skipped on replay after their Kafka outcome has been acknowledged, so a
+later worker cannot reclassify them. The local token now binds one source and the read-only audit
 found 92 completed unversioned records, 31 completed v3 records, and one
 incomplete record in the local table. All 36 duplicate owner links checked
 were structurally consistent. The
 [producer authentication contract](image_embedding_platform_docs/15_PRODUCER_AUTH_CONTRACT.md)
 is defined but no production provider is connected. The next step is to select
-one, then reconcile v1/v2 events and downstream mappings before revisiting the
-held-out quality gate.
+one, then review the
+[read-only outcome reconciliation](image_embedding_platform_docs/16_OUTCOME_RECONCILIATION.md)
+and downstream mappings before revisiting the held-out quality gate. The local
+reconciliation exposed historic mixed-policy outcome variants; the outdated
+local worker was stopped, and completed-image replay now skips republishing.

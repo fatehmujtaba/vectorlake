@@ -97,6 +97,9 @@ and reports whether its scan covered the whole table. It does not migrate
 records or verify published events. See the
 [producer authentication contract](image_embedding_platform_docs/15_PRODUCER_AUTH_CONTRACT.md)
 before configuring production uploads.
+Run `make reconcile-outcomes` to compare completed local image state with
+retained Kafka outcome events. It is read-only and flags conflicting event
+variants without changing historical state.
 The API does not receive image bytes. Run `make bridge` in another terminal
 to forward S3-created notifications from SQS to Kafka; the bridge deletes an
 SQS message only after the Kafka delivery callback succeeds and state is

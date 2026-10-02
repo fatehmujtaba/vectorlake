@@ -73,7 +73,7 @@ remains separate observations. The caller must assign a unique capture ID
 within each source and reuse the pair only for derivatives. The source ID must
 be bound to authenticated producer identity before production rollout. Stored
 capture-only v2 records keep their original `sha256(capture_id)` namespace.
-Completed prior-policy records are not re-evaluated on replay; full v1/v2
+Completed records are not re-evaluated on replay; full v1/v2
 migration still needs an explicit backfill and rollback plan.
 
 The first worker claims ownership. The second receives a conditional conflict and resolves the existing owner.
