@@ -9,7 +9,7 @@ rollback boundary before its status changes to complete.
 |---|---|---|---|
 | 1 | M5a: semantic vector adapter | Tenant/scope and model-version filters, deterministic upsert, replay and cross-tenant tests on Milvus Lite | Complete |
 | 2 | M5b: ResNet-18 inference | Pinned pretrained weights and preprocessing, bounded CPU batches, normalized 512-D vectors, deterministic per-observation IDs, generated event | Complete locally; worker backlog preflight remains |
-| 3 | M5c: archive and index consumers | Parquet archive independent of Milvus, idempotent indexer, archive-based rebuild drill | Pending |
+| 3 | M5c: archive and index consumers | Parquet archive independent of Milvus, idempotent indexer, archive-based rebuild drill | Complete locally; worker backlog preflight remains |
 | 4 | M5d: image search API | Authenticated image-query Top-K, matching model/preprocess contract, tenant-filtered results, retrieval evaluation | Pending |
 | 5 | M4 quality gate | Crop positives and representative labeled hard negatives; frozen calibration policy; fresh source-disjoint final set; activate only on passing precision/recall gates | Blocked by data and current false positives |
 | 6 | Production identity | Select provider, verify credentials, bind producer to tenant/source registry, enforce stable capture IDs, configure non-local storage | Provider and producer contract undecided |
@@ -33,8 +33,15 @@ weight checksum, and publishes `embedding.generated.v1` only after bounded
 source validation. The direct local M5 drill verifies Kafka delivery, state,
 and replay. The standalone worker is coded but should not be enabled against
 the historical local backlog until stale/invalid-event handling and its
-retry/DLQ policy are reviewed. M5c must archive embeddings independently of
-Milvus. M5d is only complete after real-image
+retry/DLQ policy are reviewed. M5c writes immutable checksummed Parquet objects
+before publishing archive events, indexes independently, and rebuilds a fresh
+Milvus Lite collection from the archive without running inference. Physical
+Parquet rows may repeat if Kafka batch boundaries change; rebuild deduplicates
+by embedding ID and rejects conflicting rows. The standalone M5c workers are
+not activated against the historical backlog until retry/DLQ and backlog
+preflight are complete. The local rebuild is capped at 10,000 unique rows and
+64 MiB per object; a production-scale streaming rebuild remains part of M6/M7.
+M5d is only complete after real-image
 retrieval tests, not merely a successful synthetic-vector query.
 
 Production authentication and historical repair are separate gates. A local

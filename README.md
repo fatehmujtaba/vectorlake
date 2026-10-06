@@ -179,3 +179,11 @@ with a private temporary filesystem. It commits the Kafka offset only after
 the outcome event is acknowledged and image state is updated. The local
 decoder is bounded, but production deployment still needs a dedicated image
 processing threat review and stronger process/network isolation.
+
+## M5c local archive and index drill
+
+`make e2e-m5-archive` runs the real ResNet-18 inference drill, archives its
+embedding as checksummed Parquet, indexes it, and rebuilds a fresh local Milvus
+Lite index from the archive. The worker entrypoints are `make archive-writer`
+and `make semantic-indexer`; do not start them on the historical Kafka backlog
+until the retry/DLQ and preflight gate in `REMAINING_WORK_PLAN.md` is complete.

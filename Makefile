@@ -2,7 +2,7 @@ UV ?= uv
 UV_CACHE_DIR ?= /tmp/vectorlake-uv-cache
 export UV_CACHE_DIR
 
-.PHONY: sync test test-inference lint format build run bridge bridge-once processor processor-up processor-down inference proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 e2e-m4-revoke e2e-m5-inference evaluate-m4 verify-worker-m3 audit-dedup reconcile-outcomes
+.PHONY: sync test test-inference lint format build run bridge bridge-once processor processor-up processor-down inference archive-writer semantic-indexer proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 e2e-m4-revoke e2e-m5-inference e2e-m5-archive evaluate-m4 verify-worker-m3 audit-dedup reconcile-outcomes
 
 sync:
 	$(UV) sync --locked --dev
@@ -40,6 +40,12 @@ processor:
 
 inference:
 	$(UV) run --locked --extra inference python -m services.inference_worker.main
+
+archive-writer:
+	$(UV) run --locked --extra archive python -m services.archive_writer.main
+
+semantic-indexer:
+	$(UV) run --locked python -m services.semantic_indexer.main
 
 processor-up:
 	docker compose --profile workers up -d --build --wait processor
@@ -79,6 +85,9 @@ e2e-m4-revoke:
 
 e2e-m5-inference:
 	$(UV) run --locked --extra inference python -m infrastructure.e2e_m5_inference
+
+e2e-m5-archive:
+	$(UV) run --locked --extra inference --extra archive python -m infrastructure.e2e_m5_archive
 
 evaluate-m4:
 	$(UV) run --locked python -m infrastructure.evaluate_near_copy
