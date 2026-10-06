@@ -49,7 +49,10 @@ Before acknowledging a terminal failure, the worker:
 The S3 snapshot retains original bytes using base64, original key, headers,
 and source position. The Protobuf envelope retains stage, consumer group,
 attempt count, safe error code/type, frozen failure timestamp, source position,
-snapshot reference/checksum and original event context when parseable.
+snapshot reference/checksum and original event context when parseable and at
+most 16 KiB. Larger contexts remain intact in the source snapshot; they are
+not copied into the envelope, which prevents a near-limit input from producing
+an oversized Kafka DLQ message.
 Malformed records need not have tenant/image identity; no identity is invented.
 Referencing S3 keeps the envelope small even for an input at the Kafka/event
 size limit. Snapshot contents require restricted access in a production rollout.
@@ -143,7 +146,7 @@ and leaves isolated test records available for audit.
 Unit tests additionally cover failed snapshot/Kafka delivery, persisted jitter,
 active-lease/stale-owner fencing, interrupted final attempts, poison isolation,
 commit ordering, disabled rollout and read-only/incomplete preflight scans.
-The full model-enabled regression suite passed 142 tests, and `make lint`
+The full model-enabled regression suite passed 143 tests, and `make lint`
 passed Ruff validation/formatting and strict mypy checks.
 
 Next is **M6b**: independent stage projection, complete processing status and

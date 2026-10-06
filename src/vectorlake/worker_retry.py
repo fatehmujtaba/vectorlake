@@ -19,6 +19,8 @@ from vectorlake.common.resources import WORKER_DLQ_BUCKET, WORKER_DLQ_TOPIC, WOR
 from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import EVENT_TYPES, EventCodecError, serialize_event
 
+MAX_DLQ_CONTEXT_BYTES = 16 * 1024
+
 
 @dataclass(frozen=True)
 class WorkerSpec:
@@ -280,9 +282,9 @@ class DeadLetterPublisher:
             try:
                 source.ParseFromString(record.payload)
                 if source.HasField("context"):
-                    deadletter.source_context.CopyFrom(
-                        cast(events_pb2.ImageReceivedV1, source).context
-                    )
+                    context = cast(events_pb2.ImageReceivedV1, source).context
+                    if context.ByteSize() <= MAX_DLQ_CONTEXT_BYTES:
+                        deadletter.source_context.CopyFrom(context)
             except (DecodeError, ValueError):
                 pass
         errors: list[str] = []

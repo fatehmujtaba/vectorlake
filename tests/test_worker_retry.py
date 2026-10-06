@@ -7,8 +7,9 @@ from unittest.mock import Mock, patch
 import pytest
 
 from vectorlake.common.local import LocalInfrastructureSettings
+from vectorlake.common.resources import WORKER_DLQ_TOPIC
 from vectorlake.events.v1 import events_pb2
-from vectorlake.events.v1.codec import serialize_event
+from vectorlake.events.v1.codec import MAX_EVENT_BYTES, deserialize_event, serialize_event
 from vectorlake.worker import ReliableExecutor, consume_once, require_worker_rollout
 from vectorlake.worker_retry import (
     DeadLetterPublisher,
@@ -283,3 +284,30 @@ def test_deadletter_delivery_callback_failure_is_not_acknowledged() -> None:
     with pytest.raises(RuntimeError, match="Kafka delivery failed"):
         publisher.publish(SPEC, source, terminal)
     assert ledger.get(source.identifier(SPEC)) == terminal
+
+
+def test_large_original_context_does_not_exceed_deadletter_envelope_limit() -> None:
+    import hashlib
+
+    original = record()
+    event = events_pb2.ImageReceivedV1.FromString(original.payload or b"")
+    event.context.traceparent = "t" * (MAX_EVENT_BYTES - 120)
+    source = SourceRecord(SPEC.topic, 0, 0, serialize_event(SPEC.topic, event), None)
+    ledger = MemoryLedger(settings())
+    claim = ledger.claim(source.identifier(SPEC))
+    ledger.fail(source.identifier(SPEC), claim, ValueError())
+    s3, producer = Mock(), Mock()
+    snapshot = source.snapshot()
+    s3.head_object.return_value = {
+        "Metadata": {"sha256": hashlib.sha256(snapshot).hexdigest()},
+        "ContentLength": len(snapshot),
+    }
+    producer.flush.return_value = 0
+    publisher = DeadLetterPublisher(settings(), s3=s3, producer=producer)
+    envelope = publisher.publish(SPEC, source, ledger.get(source.identifier(SPEC)))
+    assert not envelope.HasField("source_context")
+    s3.put_object.assert_called_once()
+    assert s3.put_object.call_args.kwargs["Body"] == snapshot
+    payload = producer.produce.call_args.kwargs["value"]
+    assert len(payload) < 2000
+    assert deserialize_event(WORKER_DLQ_TOPIC, payload) == envelope
