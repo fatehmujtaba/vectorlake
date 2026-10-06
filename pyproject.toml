@@ -22,6 +22,21 @@ dependencies = [
     "pymilvus>=2.5,<3",
 ]
 
+[project.optional-dependencies]
+inference = [
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [dependency-groups]
 dev = [
     "boto3-stubs[dynamodb,kafka,rds,s3,sqs]>=1.35,<2",
@@ -68,5 +83,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["pdqhash"]
+follow_untyped_imports = false
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["torchvision", "torchvision.*"]
 follow_untyped_imports = false
 ignore_missing_imports = true

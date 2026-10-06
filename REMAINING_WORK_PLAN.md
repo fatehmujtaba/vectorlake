@@ -8,7 +8,7 @@ rollback boundary before its status changes to complete.
 | Order | Increment | Exit check | Status |
 |---|---|---|---|
 | 1 | M5a: semantic vector adapter | Tenant/scope and model-version filters, deterministic upsert, replay and cross-tenant tests on Milvus Lite | Complete |
-| 2 | M5b: ResNet-18 inference | Pinned pretrained weights and preprocessing, bounded CPU batches, normalized 512-D vectors, deterministic per-observation IDs, generated event | Pending |
+| 2 | M5b: ResNet-18 inference | Pinned pretrained weights and preprocessing, bounded CPU batches, normalized 512-D vectors, deterministic per-observation IDs, generated event | Complete locally; worker backlog preflight remains |
 | 3 | M5c: archive and index consumers | Parquet archive independent of Milvus, idempotent indexer, archive-based rebuild drill | Pending |
 | 4 | M5d: image search API | Authenticated image-query Top-K, matching model/preprocess contract, tenant-filtered results, retrieval evaluation | Pending |
 | 5 | M4 quality gate | Crop positives and representative labeled hard negatives; frozen calibration policy; fresh source-disjoint final set; activate only on passing precision/recall gates | Blocked by data and current false positives |
@@ -28,8 +28,13 @@ demo look complete.
 M5a establishes the semantic storage contract first, using synthetic vectors
 and a local Milvus Lite file. Each image keeps its own vector row, even when
 another capture shares its duplicate group. It does not generate real embeddings
-or expose search to callers. M5b must pin model weights and preprocessing before M5c can
-archive production-compatible vectors. M5d is only complete after real-image
+or expose search to callers. M5b uses pretrained ResNet-18 on CPU, verifies the
+weight checksum, and publishes `embedding.generated.v1` only after bounded
+source validation. The direct local M5 drill verifies Kafka delivery, state,
+and replay. The standalone worker is coded but should not be enabled against
+the historical local backlog until stale/invalid-event handling and its
+retry/DLQ policy are reviewed. M5c must archive embeddings independently of
+Milvus. M5d is only complete after real-image
 retrieval tests, not merely a successful synthetic-vector query.
 
 Production authentication and historical repair are separate gates. A local

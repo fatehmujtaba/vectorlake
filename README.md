@@ -15,6 +15,19 @@ test is `uv run --locked pytest tests/test_semantic_index.py`; it requires a
 loopback port for Milvus Lite. This is an internal storage contract, not yet
 image inference or a public search endpoint.
 
+M5b adds a CPU ResNet-18 inference worker behind `make inference`. Install
+the optional model runtime with `uv sync --locked --dev --extra inference`.
+The initial pretrained weights are the torchvision `IMAGENET1K_V1` artifact
+`resnet18-f37072fd.pth`, checked against SHA-256
+`f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec`.
+To keep the downloaded weights in ignored local storage, set
+`TORCH_HOME="$PWD/.artifacts/torch"` before starting inference. Run
+`make test-inference` for the full model-enabled suite and
+`make e2e-m5-inference` for a real local image, Kafka, state, and replay drill.
+The worker should not yet be attached to an old production-like backlog:
+bounded retry/DLQ policy and historical event preflight are pending. There is
+still no archive or public image-search endpoint.
+
 ## Local development
 
 Use Python 3.12 through [uv](https://docs.astral.sh/uv/) and a running Docker
