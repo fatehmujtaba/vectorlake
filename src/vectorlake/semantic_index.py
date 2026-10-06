@@ -4,6 +4,7 @@ import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
 from pymilvus import DataType, MilvusClient
 
@@ -48,6 +49,25 @@ class SearchHit:
     image_id: str
     duplicate_group_id: str
     score: float
+
+
+class SemanticStore(Protocol):
+    collection: str
+
+    def ensure_collection(self) -> None: ...
+
+    def upsert(self, record: SemanticRecord) -> None: ...
+
+    def search(
+        self,
+        vector: Sequence[float],
+        *,
+        tenant_id: str,
+        dedup_scope_id: str,
+        model_version: str,
+        preprocess_version: str,
+        top_k: int = 10,
+    ) -> list[SearchHit]: ...
 
 
 class SemanticIndex:

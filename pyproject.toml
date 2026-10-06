@@ -8,6 +8,7 @@ dependencies = [
     "boto3>=1.35,<2",
     "confluent-kafka>=2.6,<3",
     "fastapi>=0.115,<1",
+    "httpx>=0.28,<1",
     "opentelemetry-api>=1.30,<2",
     "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
     "opentelemetry-sdk>=1.30,<2",
@@ -44,7 +45,6 @@ explicit = true
 dev = [
     "boto3-stubs[dynamodb,kafka,rds,s3,sqs]>=1.35,<2",
     "grpcio-tools>=1.75,<2",
-    "httpx>=0.28,<1",
     "milvus-lite==3.2.1",
     "mypy>=1.15,<2",
     "pytest>=8.3,<10",

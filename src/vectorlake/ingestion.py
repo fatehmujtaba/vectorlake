@@ -53,6 +53,9 @@ class UploadService:
             raise LookupError("tenant has no deduplication scope")
         return str(row[0])
 
+    def scope_for_tenant(self, tenant_id: str) -> str:
+        return self._scope(tenant_id)
+
     def create_session(
         self,
         tenant_id: str,

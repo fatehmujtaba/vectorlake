@@ -17,3 +17,5 @@ Files:
 - `08_IMPLEMENTATION_PLAN.md` — phase-by-phase junior implementation plan.
 - `09_OPERATIONS_AND_TESTING.md` — observability, load, chaos, concurrency and recovery tests.
 - `10_ADRS.md` — architecture decision records.
+- [17_IMAGE_SEARCH_API.md](17_IMAGE_SEARCH_API.md) - client contract and runnable local search demo.
+- [18_M5_RETRIEVAL_EVALUATION.md](18_M5_RETRIEVAL_EVALUATION.md) - measured M5 search accuracy and latency.

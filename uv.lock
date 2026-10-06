@@ -1325,6 +1325,7 @@ dependencies = [
     { name = "boto3" },
     { name = "confluent-kafka" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "opencv-python-headless" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -1355,7 +1356,6 @@ inference = [
 dev = [
     { name = "boto3-stubs", extra = ["dynamodb", "kafka", "rds", "s3", "sqs"] },
     { name = "grpcio-tools" },
-    { name = "httpx" },
     { name = "milvus-lite" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1368,6 +1368,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35,<2" },
     { name = "confluent-kafka", specifier = ">=2.6,<3" },
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "opencv-python-headless", specifier = ">=4.10,<5" },
     { name = "opentelemetry-api", specifier = ">=1.30,<2" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
@@ -1392,7 +1393,6 @@ provides-extras = ["archive", "inference"]
 dev = [
     { name = "boto3-stubs", extras = ["dynamodb", "kafka", "rds", "s3", "sqs"], specifier = ">=1.35,<2" },
     { name = "grpcio-tools", specifier = ">=1.75,<2" },
-    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "milvus-lite", specifier = "==3.2.1" },
     { name = "mypy", specifier = ">=1.15,<2" },
     { name = "pytest", specifier = ">=8.3,<10" },

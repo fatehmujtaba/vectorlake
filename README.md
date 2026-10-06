@@ -10,10 +10,10 @@ Track delivery in the [implementation roadmap](IMPLEMENTATION_ROADMAP.md).
 The [remaining delivery plan](REMAINING_WORK_PLAN.md) lists the open increments
 and their exit checks.
 
-M5a adds a 512-D Milvus semantic-index adapter. Its local synthetic-vector
-test is `uv run --locked pytest tests/test_semantic_index.py`; it requires a
-loopback port for Milvus Lite. This is an internal storage contract, not yet
-image inference or a public search endpoint.
+M5 now provides pinned 512-D ResNet-18 embeddings, an independent Parquet
+archive, indexing through a dedicated vector service, and authenticated
+image-to-image search. See the [search API and local demo](image_embedding_platform_docs/17_IMAGE_SEARCH_API.md)
+and [measured retrieval results](image_embedding_platform_docs/18_M5_RETRIEVAL_EVALUATION.md).
 
 M5b adds a CPU ResNet-18 inference worker behind `make inference`. Install
 the optional model runtime with `uv sync --locked --dev --extra inference`.
@@ -25,8 +25,7 @@ To keep the downloaded weights in ignored local storage, set
 `make test-inference` for the full model-enabled suite and
 `make e2e-m5-inference` for a real local image, Kafka, state, and replay drill.
 The worker should not yet be attached to an old production-like backlog:
-bounded retry/DLQ policy and historical event preflight are pending. There is
-still no archive or public image-search endpoint.
+bounded retry/DLQ policy and historical event preflight are pending.
 
 ## Local development
 
@@ -44,7 +43,8 @@ make build
 ```
 
 Copy `.env.example` to `.env` for local settings. `make run` starts the API
-on `127.0.0.1:8000`; `/healthz` and `/readyz` are the initial endpoints.
+on `127.0.0.1:8000`; start `make vector-service` separately for image search.
+Use `make seed-search` to ingest one demo capture into the serving index.
 
 ## Local infrastructure
 

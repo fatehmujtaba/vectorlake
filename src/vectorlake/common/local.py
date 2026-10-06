@@ -22,3 +22,6 @@ class LocalInfrastructureSettings(BaseSettings):
     kafka_bootstrap_servers: str = "127.0.0.1:19092"
     api_token: str = "vectorlake-local-dev-token"
     api_source_id: str = "camera-1"
+    vector_service_url: str = "http://127.0.0.1:8001"
+    vector_service_token: str = "vectorlake-local-vector-token"
+    semantic_db: str = ".artifacts/semantic-index.db"

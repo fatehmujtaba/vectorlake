@@ -12,7 +12,7 @@ from vectorlake.common.resources import IMAGE_TABLE
 from vectorlake.embedding_contract import validate_generated
 from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import serialize_event
-from vectorlake.semantic_index import SemanticIndex, SemanticRecord
+from vectorlake.semantic_index import SemanticRecord, SemanticStore
 
 OUTPUT_TOPIC = "image.indexed.v1"
 
@@ -24,7 +24,7 @@ class PendingInferenceState(Exception):
 class EmbeddingIndexer:
     def __init__(
         self,
-        index: SemanticIndex,
+        index: SemanticStore,
         settings: LocalInfrastructureSettings | None = None,
         *,
         ddb: Any | None = None,

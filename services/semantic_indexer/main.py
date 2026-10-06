@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 
 from confluent_kafka import Consumer
@@ -10,7 +9,7 @@ from vectorlake.common.local import LocalInfrastructureSettings
 from vectorlake.embedding_indexer import EmbeddingIndexer
 from vectorlake.events.v1 import events_pb2
 from vectorlake.events.v1.codec import deserialize_event
-from vectorlake.semantic_index import SemanticIndex
+from vectorlake.vector_client import VectorClient
 
 logger = logging.getLogger(__name__)
 TOPIC = "embedding.generated.v1"
@@ -18,8 +17,7 @@ TOPIC = "embedding.generated.v1"
 
 def main() -> None:
     settings = LocalInfrastructureSettings()
-    uri = os.environ.get("VECTORLAKE_SEMANTIC_DB", ".artifacts/semantic-index.db")
-    index = SemanticIndex(uri)
+    index = VectorClient(settings)
     service = EmbeddingIndexer(index, settings)
     try:
         while True:

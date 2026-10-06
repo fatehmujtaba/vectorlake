@@ -17,7 +17,7 @@ handling of untrusted images.
 | M2 | Upload-to-event vertical slice | 3-4 | Complete |
 | M3 | Safe validation and deterministic deduplication | 5-6 | Complete |
 | M4 | Evaluated near-copy deduplication | 7-9 | In progress (shadow path) |
-| M5 | Embeddings, archive, and image search | 10-12 | In progress (adapter and local inference) |
+| M5 | Embeddings, archive, and image search | 10-12 | Complete locally; autonomous worker rollout gated on M6 |
 | M6 | State, repair, and observability | 13-15 | Pending |
 | M7 | End-to-end reliability and release gate | 16 | Pending |
 
@@ -86,10 +86,13 @@ handling of untrusted images.
 - Deliver a versioned ResNet-18 adapter with bounded inference, deterministic
   embedding IDs, 512-D normalized vectors, an independent S3/Parquet archive
   consumer, a Milvus-backed semantic indexer, and tenant-filtered image search.
-- The local semantic index adapter, pinned CPU ResNet-18 engine, and generated
-  event path are verified with synthetic and real-image drills. Archive,
-  index consumer, and an API search path remain open. Track increments in the
-  [remaining delivery plan](REMAINING_WORK_PLAN.md).
+- The local pinned inference, independent archive and rebuild, HTTP vector
+  service, index consumer, and authenticated image search are verified.
+  The real upload-to-search drill passed; all 132 calibration queries found
+  their source image at rank 1 in the 33-image gallery. See the
+  [retrieval evaluation](image_embedding_platform_docs/18_M5_RETRIEVAL_EVALUATION.md).
+  Worker retry/DLQ and historical backlog preflight remain in M6. Track the
+  five remaining gates in the [remaining delivery plan](REMAINING_WORK_PLAN.md).
 - Exit: a unique image is embedded once logically, archived, indexed, and
   retrievable; duplicate event replay creates no second logical vector;
   rebuilding the index from Parquet requires no model inference.

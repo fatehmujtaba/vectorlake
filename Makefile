@@ -1,8 +1,10 @@
 UV ?= uv
 UV_CACHE_DIR ?= /tmp/vectorlake-uv-cache
 export UV_CACHE_DIR
+TORCH_HOME ?= $(CURDIR)/.artifacts/torch
+export TORCH_HOME
 
-.PHONY: sync test test-inference lint format build run bridge bridge-once processor processor-up processor-down inference archive-writer semantic-indexer proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 e2e-m4-revoke e2e-m5-inference e2e-m5-archive evaluate-m4 verify-worker-m3 audit-dedup reconcile-outcomes
+.PHONY: sync test test-inference lint format build run vector-service bridge bridge-once processor processor-up processor-down inference archive-writer semantic-indexer proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 e2e-m4-revoke e2e-m5-inference e2e-m5-archive e2e-m5-search seed-search evaluate-m5-search evaluate-m4 verify-worker-m3 audit-dedup reconcile-outcomes
 
 sync:
 	$(UV) sync --locked --dev
@@ -27,7 +29,10 @@ build:
 	docker build -t vectorlake:dev .
 
 run:
-	$(UV) run --locked uvicorn services.api.main:app --host 127.0.0.1 --port 8000
+	$(UV) run --locked --extra inference uvicorn services.api.main:app --host 127.0.0.1 --port 8000 --workers 1
+
+vector-service:
+	$(UV) run --locked uvicorn services.vector_service.main:app --host 127.0.0.1 --port 8001 --workers 1
 
 bridge:
 	$(UV) run --locked python -m services.event_bridge.main
@@ -88,6 +93,17 @@ e2e-m5-inference:
 
 e2e-m5-archive:
 	$(UV) run --locked --extra inference --extra archive python -m infrastructure.e2e_m5_archive
+
+SEARCH_TEST_IMAGE ?= .artifacts/m4/kaggle/extracted/dataset/animal/animal_evening_time_frame_7817.jpg
+
+e2e-m5-search:
+	$(UV) run --locked --extra inference --extra archive python -m infrastructure.e2e_m5_search --image "$(SEARCH_TEST_IMAGE)"
+
+seed-search:
+	$(UV) run --locked --extra inference --extra archive python -m infrastructure.seed_image_search --image "$(SEARCH_TEST_IMAGE)"
+
+evaluate-m5-search:
+	$(UV) run --locked --extra inference python -m infrastructure.evaluate_image_search --manifest .artifacts/m4/kaggle/manifest.jsonl --output .artifacts/m5/search_calibration_report.json
 
 evaluate-m4:
 	$(UV) run --locked python -m infrastructure.evaluate_near_copy
