@@ -106,6 +106,20 @@ Use one vector-service process and one public API process for this local CPU
 configuration. The indexer now calls the vector service over HTTP instead of
 opening its Milvus Lite file. Do not open that file from another process.
 
+When another backend needs ports 8000/8001, use alternate ports explicitly:
+
+```sh
+make vector-service VECTOR_SERVICE_PORT=8101
+```
+
+```sh
+VECTORLAKE_LOCAL_VECTOR_SERVICE_URL=http://127.0.0.1:8101 make run API_PORT=8100
+```
+
+Use the same vector-service URL for any seed/index commands in that session.
+The services are currently stopped following the user's request; these commands
+start them only when the user chooses to run a demo again.
+
 With those services running, seed a new capture through the real local
 upload, dedup, inference, archive, and indexing components:
 
@@ -143,6 +157,7 @@ split in an isolated index and stops its services afterwards.
 
 The [retrieval evaluation](18_M5_RETRIEVAL_EVALUATION.md) verifies transformed
 image retrieval on a small gallery. Production identity, automatic state
-projection, bounded worker retries/DLQ, historical backlog preflight,
-observability and load acceptance remain in the
+projection, worker rollout, observability and load acceptance remain in the
 [remaining plan](../REMAINING_WORK_PLAN.md). Near-copy dedup remains shadow-only.
+The [M6a retry and preflight](19_M6A_RETRY_AND_PREFLIGHT.md) implementation is
+complete locally; its report blocks activation on historical conflicts.

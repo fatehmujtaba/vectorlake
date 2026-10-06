@@ -18,7 +18,7 @@ handling of untrusted images.
 | M3 | Safe validation and deterministic deduplication | 5-6 | Complete |
 | M4 | Evaluated near-copy deduplication | 7-9 | In progress (shadow path) |
 | M5 | Embeddings, archive, and image search | 10-12 | Complete locally; autonomous worker rollout gated on M6 |
-| M6 | State, repair, and observability | 13-15 | Pending |
+| M6 | State, repair, and observability | 13-15 | M6a complete locally; M6b/M6c remain |
 | M7 | End-to-end reliability and release gate | 16 | Pending |
 
 ### M0: Engineering foundation
@@ -100,6 +100,10 @@ handling of untrusted images.
 
 ### M6: State, repair, and observability
 
+- M6a's durable retries, versioned dead-letter transport and read-only backlog
+  preflight passed local checks. Historical conflicts still block autonomous
+  rollout. See [M6a evidence](image_embedding_platform_docs/19_M6A_RETRY_AND_PREFLIGHT.md).
+  Next implementation increment is M6b's stage projector and safe gap recovery.
 - Deliver independent stage state with stale-event guards, complete image
   status, a reconciler for recoverable gaps, trace propagation, metrics,
   dashboards, and useful logs without secrets or high-cardinality labels.

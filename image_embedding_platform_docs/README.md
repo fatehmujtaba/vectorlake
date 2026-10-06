@@ -19,3 +19,4 @@ Files:
 - `10_ADRS.md` — architecture decision records.
 - [17_IMAGE_SEARCH_API.md](17_IMAGE_SEARCH_API.md) - client contract and runnable local search demo.
 - [18_M5_RETRIEVAL_EVALUATION.md](18_M5_RETRIEVAL_EVALUATION.md) - measured M5 search accuracy and latency.
+- [19_M6A_RETRY_AND_PREFLIGHT.md](19_M6A_RETRY_AND_PREFLIGHT.md) - durable worker retries, DLQ contract and historical rollout blockers.

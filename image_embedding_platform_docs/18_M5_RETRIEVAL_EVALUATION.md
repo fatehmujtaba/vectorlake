@@ -75,7 +75,8 @@ about class-level relevance, unknown-image rejection, general scene matching,
 or fresh final-domain quality. Cosine search has no duplicate-acceptance
 threshold; high similarity must not activate near-copy dedup.
 
-M5 is complete locally with its worker rollout boundary intact. Next is M6a:
-bounded retries/DLQ and historical event preflight before enabling autonomous
-workers. M4's fresh source-disjoint quality gate, production identity,
+M5 is complete locally with its worker rollout boundary intact. M6a's bounded
+retries/DLQ and historical preflight are now implemented; activation remains
+blocked by historical conflicts. Next is M6b stage projection and safe gap
+recovery. M4's fresh source-disjoint quality gate, production identity,
 historical repairs, and M7 release acceptance remain open.

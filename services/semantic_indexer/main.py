@@ -1,57 +1,31 @@
 from __future__ import annotations
 
 import logging
-import time
 
-from confluent_kafka import Consumer
+from google.protobuf.message import Message
 
 from vectorlake.common.local import LocalInfrastructureSettings
 from vectorlake.embedding_indexer import EmbeddingIndexer
 from vectorlake.events.v1 import events_pb2
-from vectorlake.events.v1.codec import deserialize_event
 from vectorlake.vector_client import VectorClient
+from vectorlake.worker import require_worker_rollout, run_worker
+from vectorlake.worker_retry import WORKERS
 
-logger = logging.getLogger(__name__)
-TOPIC = "embedding.generated.v1"
+
+def process_events(service: EmbeddingIndexer, events: list[Message]) -> None:
+    for event in events:
+        if not isinstance(event, events_pb2.EmbeddingGeneratedV1):
+            raise TypeError("unexpected index event type")
+        service.process(event)
 
 
 def main() -> None:
     settings = LocalInfrastructureSettings()
+    require_worker_rollout(settings)
     index = VectorClient(settings)
     service = EmbeddingIndexer(index, settings)
     try:
-        while True:
-            consumer = Consumer(
-                {
-                    "bootstrap.servers": settings.kafka_bootstrap_servers,
-                    "group.id": "vectorlake-index-v1",
-                    "auto.offset.reset": "earliest",
-                    "enable.auto.commit": False,
-                }
-            )
-            try:
-                consumer.subscribe([TOPIC])
-                while True:
-                    message = consumer.poll(1)
-                    if message is None:
-                        continue
-                    if message.error():
-                        raise RuntimeError(str(message.error()))
-                    payload = message.value()
-                    if payload is None:
-                        raise ValueError("embedding event has no payload")
-                    event = deserialize_event(TOPIC, payload)
-                    if not isinstance(event, events_pb2.EmbeddingGeneratedV1):
-                        raise TypeError("unexpected embedding event type")
-                    service.process(event)
-                    consumer.commit(message=message, asynchronous=False)
-            except KeyboardInterrupt:
-                break
-            except Exception:
-                logger.exception("semantic index failed; Kafka offset remains uncommitted")
-                time.sleep(2)
-            finally:
-                consumer.close()
+        run_worker(WORKERS["index"], lambda events: process_events(service, events), settings)
     finally:
         index.close()
 

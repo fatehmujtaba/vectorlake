@@ -18,6 +18,8 @@ from vectorlake.common.resources import (
     OBJECT_QUEUE,
     RAW_BUCKET,
     SMOKE_TOPIC,
+    WORKER_DLQ_BUCKET,
+    WORKER_RETRY_TABLE,
 )
 from vectorlake.events.v1.codec import EVENT_TYPES
 
@@ -29,6 +31,7 @@ DDB_TABLES = {
     "request_idempotency": "PK",
     "near_copy_evidence": "image_id",
     "duplicate_decisions": "image_id",
+    WORKER_RETRY_TABLE: "PK",
 }
 PDQ_TABLE = "pdq_fingerprints"
 
@@ -58,7 +61,7 @@ def _wait_for(description: str, fetch: Any, timeout_seconds: int = 180) -> Any:
 
 def _ensure_buckets(s3: Any) -> None:
     existing = {bucket["Name"] for bucket in s3.list_buckets()["Buckets"]}
-    for name in (RAW_BUCKET, ARCHIVE_BUCKET):
+    for name in (RAW_BUCKET, ARCHIVE_BUCKET, WORKER_DLQ_BUCKET):
         if name not in existing:
             s3.create_bucket(Bucket=name)
 

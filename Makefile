@@ -3,8 +3,10 @@ UV_CACHE_DIR ?= /tmp/vectorlake-uv-cache
 export UV_CACHE_DIR
 TORCH_HOME ?= $(CURDIR)/.artifacts/torch
 export TORCH_HOME
+API_PORT ?= 8000
+VECTOR_SERVICE_PORT ?= 8001
 
-.PHONY: sync test test-inference lint format build run vector-service bridge bridge-once processor processor-up processor-down inference archive-writer semantic-indexer proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 e2e-m4-revoke e2e-m5-inference e2e-m5-archive e2e-m5-search seed-search evaluate-m5-search evaluate-m4 verify-worker-m3 audit-dedup reconcile-outcomes
+.PHONY: sync test test-inference lint format build run vector-service bridge bridge-once processor processor-up processor-down inference archive-writer semantic-indexer proto infra-up infra-down bootstrap smoke probe-milvus e2e-m2 e2e-m3 e2e-m4 e2e-m4-revoke e2e-m5-inference e2e-m5-archive e2e-m5-search seed-search evaluate-m5-search e2e-m6-retry worker-preflight evaluate-m4 verify-worker-m3 audit-dedup reconcile-outcomes
 
 sync:
 	$(UV) sync --locked --dev
@@ -29,10 +31,10 @@ build:
 	docker build -t vectorlake:dev .
 
 run:
-	$(UV) run --locked --extra inference uvicorn services.api.main:app --host 127.0.0.1 --port 8000 --workers 1
+	$(UV) run --locked --extra inference uvicorn services.api.main:app --host 127.0.0.1 --port $(API_PORT) --workers 1
 
 vector-service:
-	$(UV) run --locked uvicorn services.vector_service.main:app --host 127.0.0.1 --port 8001 --workers 1
+	$(UV) run --locked uvicorn services.vector_service.main:app --host 127.0.0.1 --port $(VECTOR_SERVICE_PORT) --workers 1
 
 bridge:
 	$(UV) run --locked python -m services.event_bridge.main
@@ -116,3 +118,9 @@ audit-dedup:
 
 reconcile-outcomes:
 	$(UV) run --locked python -m infrastructure.reconcile_outcomes
+
+worker-preflight:
+	$(UV) run --locked python -m infrastructure.worker_preflight
+
+e2e-m6-retry:
+	$(UV) run --locked python -m infrastructure.e2e_m6_retry

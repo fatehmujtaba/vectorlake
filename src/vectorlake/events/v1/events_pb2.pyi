@@ -144,3 +144,39 @@ class ProcessingFailedV1(_message.Message):
     retryable: bool
     safe_public_message: str
     def __init__(self, context: _Optional[_Union[EventContext, _Mapping]] = ..., stage: _Optional[str] = ..., error_code: _Optional[str] = ..., retryable: _Optional[bool] = ..., safe_public_message: _Optional[str] = ...) -> None: ...
+
+class WorkerDeadLetterV1(_message.Message):
+    __slots__ = ("record_id", "stage", "consumer_group", "source_topic", "source_partition", "source_offset", "record_bucket", "record_key", "record_sha256", "source_context", "attempts", "error_code", "error_type", "retryable", "failed_at_epoch_ms", "schema_version")
+    RECORD_ID_FIELD_NUMBER: _ClassVar[int]
+    STAGE_FIELD_NUMBER: _ClassVar[int]
+    CONSUMER_GROUP_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_TOPIC_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_PARTITION_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    RECORD_BUCKET_FIELD_NUMBER: _ClassVar[int]
+    RECORD_KEY_FIELD_NUMBER: _ClassVar[int]
+    RECORD_SHA256_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_CONTEXT_FIELD_NUMBER: _ClassVar[int]
+    ATTEMPTS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_CODE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_TYPE_FIELD_NUMBER: _ClassVar[int]
+    RETRYABLE_FIELD_NUMBER: _ClassVar[int]
+    FAILED_AT_EPOCH_MS_FIELD_NUMBER: _ClassVar[int]
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    record_id: str
+    stage: str
+    consumer_group: str
+    source_topic: str
+    source_partition: int
+    source_offset: int
+    record_bucket: str
+    record_key: str
+    record_sha256: str
+    source_context: EventContext
+    attempts: int
+    error_code: str
+    error_type: str
+    retryable: bool
+    failed_at_epoch_ms: int
+    schema_version: int
+    def __init__(self, record_id: _Optional[str] = ..., stage: _Optional[str] = ..., consumer_group: _Optional[str] = ..., source_topic: _Optional[str] = ..., source_partition: _Optional[int] = ..., source_offset: _Optional[int] = ..., record_bucket: _Optional[str] = ..., record_key: _Optional[str] = ..., record_sha256: _Optional[str] = ..., source_context: _Optional[_Union[EventContext, _Mapping]] = ..., attempts: _Optional[int] = ..., error_code: _Optional[str] = ..., error_type: _Optional[str] = ..., retryable: _Optional[bool] = ..., failed_at_epoch_ms: _Optional[int] = ..., schema_version: _Optional[int] = ...) -> None: ...

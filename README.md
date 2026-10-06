@@ -15,6 +15,12 @@ archive, indexing through a dedicated vector service, and authenticated
 image-to-image search. See the [search API and local demo](image_embedding_platform_docs/17_IMAGE_SEARCH_API.md)
 and [measured retrieval results](image_embedding_platform_docs/18_M5_RETRIEVAL_EVALUATION.md).
 
+M6a adds persistent worker retry limits, dead-letter snapshots and read-only
+backlog preflight. Run `make e2e-m6-retry` for the isolated durability drill and
+`make worker-preflight` for the historical rollout report. Workers default to
+disabled; the current report blocks historical activation. See
+[M6a behavior and evidence](image_embedding_platform_docs/19_M6A_RETRY_AND_PREFLIGHT.md).
+
 M5b adds a CPU ResNet-18 inference worker behind `make inference`. Install
 the optional model runtime with `uv sync --locked --dev --extra inference`.
 The initial pretrained weights are the torchvision `IMAGENET1K_V1` artifact
@@ -25,7 +31,7 @@ To keep the downloaded weights in ignored local storage, set
 `make test-inference` for the full model-enabled suite and
 `make e2e-m5-inference` for a real local image, Kafka, state, and replay drill.
 The worker should not yet be attached to an old production-like backlog:
-bounded retry/DLQ policy and historical event preflight are pending.
+historical event preflight still blocks rollout despite the implemented retry/DLQ flow.
 
 ## Local development
 
@@ -186,4 +192,5 @@ processing threat review and stronger process/network isolation.
 embedding as checksummed Parquet, indexes it, and rebuilds a fresh local Milvus
 Lite index from the archive. The worker entrypoints are `make archive-writer`
 and `make semantic-indexer`; do not start them on the historical Kafka backlog
-until the retry/DLQ and preflight gate in `REMAINING_WORK_PLAN.md` is complete.
+while the preflight remains blocked. Retry/DLQ implementation is complete;
+rollout blockers are tracked in `REMAINING_WORK_PLAN.md`.

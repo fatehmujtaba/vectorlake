@@ -80,3 +80,23 @@ message ProcessingFailedV1 {
   bool retryable = 4;
   string safe_public_message = 5;
 }
+
+// Transport failures can lack a valid domain context; the original record is retained in S3.
+message WorkerDeadLetterV1 {
+  string record_id = 1;
+  string stage = 2;
+  string consumer_group = 3;
+  string source_topic = 4;
+  int32 source_partition = 5;
+  int64 source_offset = 6;
+  string record_bucket = 7;
+  string record_key = 8;
+  string record_sha256 = 9;
+  EventContext source_context = 10;
+  uint32 attempts = 11;
+  string error_code = 12;
+  string error_type = 13;
+  bool retryable = 14;
+  int64 failed_at_epoch_ms = 15;
+  uint32 schema_version = 16;
+}

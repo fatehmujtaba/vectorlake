@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
-from services.archive_writer.main import main
+from services.archive_writer.main import process_events
 from vectorlake.embedding import MODEL_NAME, MODEL_VERSION, PREPROCESS_VERSION, embedding_id
 from vectorlake.events.v1 import events_pb2
-from vectorlake.events.v1.codec import serialize_event
 
 
-def message(image_id: str, timestamp: int) -> Mock:
+def event(image_id: str, timestamp: int) -> events_pb2.EmbeddingGeneratedV1:
     event = events_pb2.EmbeddingGeneratedV1(
         context=events_pb2.EventContext(
             event_id=f"event-{image_id}",
@@ -29,45 +28,22 @@ def message(image_id: str, timestamp: int) -> Mock:
         dimension=512,
         vector=[1.0] + [0.0] * 511,
     )
-    result = Mock()
-    result.error.return_value = None
-    result.value.return_value = serialize_event("embedding.generated.v1", event)
-    return result
+    return event
 
 
 @pytest.mark.parametrize("next_day", [False, True])
-def test_archive_worker_batches_and_commits_after_all_writes(next_day: bool) -> None:
-    first = message("image-1", 1_700_000_000_000)
-    second = message("image-2", 1_700_000_000_000 + (86_400_000 if next_day else 0))
-    consumer = Mock()
-    consumer.poll.side_effect = [first, second, None, KeyboardInterrupt()]
-    with (
-        patch("services.archive_writer.main.Consumer", return_value=consumer),
-        patch("services.archive_writer.main.ArchiveWriter") as writer_type,
-    ):
-
-        def write(events: list[events_pb2.EmbeddingGeneratedV1]) -> None:
-            consumer.commit.assert_not_called()
-            assert len(events) == (1 if next_day else 2)
-
-        writer_type.return_value.write_batch.side_effect = write
-        main()
-    assert writer_type.return_value.write_batch.call_count == (2 if next_day else 1)
-    assert consumer.commit.call_count == 2
-    consumer.close.assert_called_once()
+def test_archive_adapter_batches_and_partitions_by_utc_day(next_day: bool) -> None:
+    first = event("image-1", 1_700_000_000_000)
+    second = event("image-2", 1_700_000_000_000 + (86_400_000 if next_day else 0))
+    writer = Mock()
+    process_events(writer, [first, second])
+    assert writer.write_batch.call_count == (2 if next_day else 1)
+    if not next_day:
+        writer.write_batch.assert_called_once_with([first, second])
 
 
-def test_archive_worker_leaves_offsets_uncommitted_on_write_failure() -> None:
-    failed = Mock()
-    failed.poll.side_effect = [message("image-1", 1_700_000_000_000), None]
-    retry = Mock()
-    retry.poll.side_effect = KeyboardInterrupt()
-    with (
-        patch("services.archive_writer.main.Consumer", side_effect=[failed, retry]),
-        patch("services.archive_writer.main.ArchiveWriter") as writer_type,
-        patch("services.archive_writer.main.time.sleep"),
-    ):
-        writer_type.return_value.write_batch.side_effect = RuntimeError("storage unavailable")
-        main()
-    failed.commit.assert_not_called()
-    failed.close.assert_called_once()
+def test_archive_adapter_propagates_failures_to_retry_executor() -> None:
+    writer = Mock()
+    writer.write_batch.side_effect = RuntimeError("storage unavailable")
+    with pytest.raises(RuntimeError, match="storage unavailable"):
+        process_events(writer, [event("image-1", 1_700_000_000_000)])

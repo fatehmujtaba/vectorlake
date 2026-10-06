@@ -2,6 +2,7 @@ from typing import cast
 
 from google.protobuf.message import DecodeError, Message
 
+from vectorlake.common.resources import WORKER_DLQ_BUCKET, WORKER_DLQ_TOPIC
 from vectorlake.events.v1 import events_pb2
 
 EVENT_TYPES: dict[str, type[Message]] = {
@@ -12,6 +13,7 @@ EVENT_TYPES: dict[str, type[Message]] = {
     "embedding.archived.v1": events_pb2.EmbeddingArchivedV1,
     "image.indexed.v1": events_pb2.ImageIndexedV1,
     "processing.failed.v1": events_pb2.ProcessingFailedV1,
+    WORKER_DLQ_TOPIC: events_pb2.WorkerDeadLetterV1,
 }
 
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
@@ -45,6 +47,27 @@ def _event_type(topic: str) -> type[Message]:
 
 
 def _validate(topic: str, message: Message) -> None:
+    if isinstance(message, events_pb2.WorkerDeadLetterV1):
+        if (
+            topic != WORKER_DLQ_TOPIC
+            or message.schema_version != 1
+            or not message.record_id
+            or not message.stage
+            or not message.consumer_group
+            or not message.source_topic
+            or message.source_partition < 0
+            or message.source_offset < 0
+            or message.record_bucket != WORKER_DLQ_BUCKET
+            or not message.record_key
+            or len(message.record_sha256) != 64
+            or any(value not in "0123456789abcdef" for value in message.record_sha256)
+            or message.attempts < 1
+            or not message.error_code
+            or not message.error_type
+            or message.failed_at_epoch_ms <= 0
+        ):
+            raise EventCodecError("dead-letter transport contract is incomplete")
+        return
     if not message.HasField("context"):
         raise EventCodecError("event context is required")
     context = cast(events_pb2.ImageReceivedV1, message).context
