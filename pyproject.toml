@@ -19,6 +19,7 @@ dependencies = [
     "pdqhash>=0.2,<1",
     "opencv-python-headless>=4.10,<5",
     "scikit-image>=0.25,<1",
+    "pymilvus>=2.5,<3",
 ]
 
 [dependency-groups]
@@ -26,8 +27,8 @@ dev = [
     "boto3-stubs[dynamodb,kafka,rds,s3,sqs]>=1.35,<2",
     "grpcio-tools>=1.75,<2",
     "httpx>=0.28,<1",
+    "milvus-lite==3.2.1",
     "mypy>=1.15,<2",
-    "pymilvus[milvus-lite]>=2.5,<3",
     "pytest>=8.3,<10",
     "ruff>=0.12,<1",
     "types-protobuf>=6,<8",

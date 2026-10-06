@@ -7,6 +7,13 @@ The architecture and implementation plan are in the
 [documentation pack](image_embedding_platform_docs/00_START_HERE.md).
 
 Track delivery in the [implementation roadmap](IMPLEMENTATION_ROADMAP.md).
+The [remaining delivery plan](REMAINING_WORK_PLAN.md) lists the open increments
+and their exit checks.
+
+M5a adds a 512-D Milvus semantic-index adapter. Its local synthetic-vector
+test is `uv run --locked pytest tests/test_semantic_index.py`; it requires a
+loopback port for Milvus Lite. This is an internal storage contract, not yet
+image inference or a public search endpoint.
 
 ## Local development
 

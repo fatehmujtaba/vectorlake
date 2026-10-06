@@ -210,6 +210,8 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6c/f4/098bd9d178ae36fa078c66068d3264e27fff4308d5131655e5e743153d4c/faiss_cpu-1.15.1-cp310-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f2c31b7f2f6647eb76829a5cfe3c398fb9346df9f26b1d4db35269c91eb58c33", size = 18834180, upload-time = "2026-09-16T18:33:36.023Z" },
     { url = "https://files.pythonhosted.org/packages/3c/a7/d9e88b337f9636e0e80b651bfd27dbff533820d26c250bb60d2122de18a9/faiss_cpu-1.15.1-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:2d0a59d8ee9ffcac34608f591d16b617d9056e12a26a8b8cf0015b6b334e33e1", size = 11447194, upload-time = "2026-09-16T18:33:38.883Z" },
     { url = "https://files.pythonhosted.org/packages/01/28/0855b161a081556a1df0ff14d5e7e73db23bd24ed85505009387fb61762e/faiss_cpu-1.15.1-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:d4a250000112ac26ae79530e67a18fa986c8b7b0329154aefeb7692b270ed366", size = 19574480, upload-time = "2026-09-16T18:33:42.213Z" },
+    { url = "https://files.pythonhosted.org/packages/69/19/a4bd07c73f17556eff1599e27918b8a97eaab468aea7b143bd49ca0535eb/faiss_cpu-1.15.1-cp312-cp312-win_amd64.whl", hash = "sha256:38d192695210a51ff72449d8802ff62601568fcfc6372222a64a069da0ecdb10", size = 16293368, upload-time = "2026-09-16T18:33:55.001Z" },
+    { url = "https://files.pythonhosted.org/packages/56/35/c79cd7321c6d8af277691e7a7ca1dd362e0fff24a9697aa944781cdb8c75/faiss_cpu-1.15.1-cp312-cp312-win_arm64.whl", hash = "sha256:4fd6623ed931d16256b268ac2984f672cdf1929702e24b3e741798d0bb08804f", size = 9039754, upload-time = "2026-09-16T18:33:57.835Z" },
 ]
 
 [[package]]
@@ -804,6 +806,7 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/60/c9/711ca85d79f1ec98f29a5eae2b051e25b4ecec5de3e3c0e2d5c5dcb15664/pyarrow-25.0.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:5389cdf79447ed1515c9e31620e6e1e2302249564d603f2ad727d4f6d313e4c3", size = 50102437, upload-time = "2026-08-10T12:38:22.487Z" },
     { url = "https://files.pythonhosted.org/packages/80/53/8fb8359ff17cfb6263a1cf3ebf7caec9fe197de118719e84fcb1d0618026/pyarrow-25.0.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:d51592cb7561e87877c506113e7adbf1342ab579e6c21f0ef44b8ba41cb74c80", size = 49942424, upload-time = "2026-08-10T12:38:28.755Z" },
     { url = "https://files.pythonhosted.org/packages/e8/83/4e5ae02a9341571b18a6fca380ac7a58ce6ddae7ab3c060208c0a1e79f02/pyarrow-25.0.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:6109c94d8b9f3b17a041daca16cacb2f651ad8f1ef70a4232c2c0f37a23da2a8", size = 53144206, upload-time = "2026-08-10T12:38:34.862Z" },
+    { url = "https://files.pythonhosted.org/packages/65/ee/197cbf47e49f83e6ebeb946a5259a48a638dea27ac774db42fe78022179d/pyarrow-25.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:8858d7bfc22e3f51529aeaa4077225029724623e4595dc9eff8c793935c34140", size = 27953934, upload-time = "2026-08-10T12:38:39.808Z" },
 ]
 
 [[package]]
@@ -890,11 +893,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/61/22/7dad24082f7efa4bf5ff29f0d9241cec6a8c8ebeb08ad126ca7ca4793da7/pymilvus-2.6.17.tar.gz", hash = "sha256:d9f849ef177f242febc4c02ece88feea46a1a9a1d0c67688b600e7cce3b76f43", size = 306908, upload-time = "2026-07-17T06:23:32.592Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/42/a6/9e2824138ffe1b2932c24f836638dabff5c6fbb5a9afcc1ba5ac5cdc39d8/pymilvus-2.6.17-py3-none-any.whl", hash = "sha256:583c680bea60b5944762ae81dd577169efe3b895b579d78e60bab05c087c4f89", size = 342148, upload-time = "2026-07-17T06:23:31.188Z" },
-]
-
-[package.optional-dependencies]
-milvus-lite = [
-    { name = "milvus-lite", marker = "sys_platform != 'win32'" },
 ]
 
 [[package]]
@@ -1163,6 +1161,7 @@ dependencies = [
     { name = "protobuf" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
+    { name = "pymilvus" },
     { name = "scikit-image" },
     { name = "uvicorn" },
 ]
@@ -1172,8 +1171,8 @@ dev = [
     { name = "boto3-stubs", extra = ["dynamodb", "kafka", "rds", "s3", "sqs"] },
     { name = "grpcio-tools" },
     { name = "httpx" },
+    { name = "milvus-lite" },
     { name = "mypy" },
-    { name = "pymilvus", extra = ["milvus-lite"] },
     { name = "pytest" },
     { name = "ruff" },
     { name = "types-protobuf" },
@@ -1193,6 +1192,7 @@ requires-dist = [
     { name = "protobuf", specifier = ">=6.33,<8" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pydantic-settings", specifier = ">=2.8,<3" },
+    { name = "pymilvus", specifier = ">=2.5,<3" },
     { name = "scikit-image", specifier = ">=0.25,<1" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
@@ -1202,8 +1202,8 @@ dev = [
     { name = "boto3-stubs", extras = ["dynamodb", "kafka", "rds", "s3", "sqs"], specifier = ">=1.35,<2" },
     { name = "grpcio-tools", specifier = ">=1.75,<2" },
     { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "milvus-lite", specifier = "==3.2.1" },
     { name = "mypy", specifier = ">=1.15,<2" },
-    { name = "pymilvus", extras = ["milvus-lite"], specifier = ">=2.5,<3" },
     { name = "pytest", specifier = ">=8.3,<10" },
     { name = "ruff", specifier = ">=0.12,<1" },
     { name = "types-protobuf", specifier = ">=6,<8" },
